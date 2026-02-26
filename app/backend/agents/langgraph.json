@@ -1,0 +1,7 @@
+{
+  "graphs": {
+    "retail_assistant": "./src/ai_sahayak/graphs/workflows/retail_assistant.py:graph",
+    "onboarding": "./src/ai_sahayak/graphs/workflows/onboarding.py:graph"
+  },
+  "env": ".env"
+}
