@@ -1,0 +1,60 @@
+# User-generated configs
+.env
+.env.*
+!.env.example
+
+# IDEs and Editors
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+.cursor/
+.kiro/
+.qodo/
+
+# Node.js
+node_modules/
+npm-debug.log
+yarn-error.log
+dist/
+build/
+coverage/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+venv*/
+ai-sahayak-env/
+.venv/
+env.bak/
+venv.bak/
+.coverage
+htmlcov/
+pytest.xml
+
+# Infrastructure / Terraform
+.terraform/
+*.tfstate
+*.tfstate.*
+crash.log
+crash.*.log
+*.tfvars
+ignore/
+
+# Logs
+logs/
+*.log
+
+# Design / Docs specific (if any generated)
+*.pdf
+
+# Temp and cached files
+tmp/
+temp/
+.cache
