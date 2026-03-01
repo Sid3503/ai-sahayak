@@ -10,10 +10,13 @@ class Settings(BaseSettings):
     REASONING_MODEL_ID: str = "qwen.qwen3-32b-v1:0"
     AWS_ACCESS_KEY_ID: str = ""
     AWS_SECRET_ACCESS_KEY: str = ""
+    AGENTCORE_MEMORY_ID: str = ""
+    AWS_REGION: str = "ap-south-1"
+    APP_ENV: str = "dev"
     
     WHATSAPP_VERIFY_TOKEN: str = "sahayak_secret"
-    WHATSAPP_ACCESS_TOKEN: str = ""
-    
+    WHATSAPP_API_TOKEN: str = ""
+    WHATSAPP_PHONE_NUMBER_ID: str = ""    
     class Config:
         env_file = ".env"
 

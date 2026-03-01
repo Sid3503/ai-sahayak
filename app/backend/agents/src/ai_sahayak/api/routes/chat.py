@@ -6,12 +6,8 @@ from fastapi import APIRouter, HTTPException, Request
 from langchain_core.messages import HumanMessage, AIMessage
 
 from ai_sahayak.schemas.webhook import InboundPayload, OutboundPayload, ErrorResponse, WebhookAck
-from ai_sahayak.memory.conversation import (
-    get_conversation_state,
-    save_conversation_state,
-    restore_messages
-)
 from ai_sahayak.graphs.workflows.retail_assistant import graph
+from ai_sahayak.memory.conversation import save_conversation_state
 
 router = APIRouter()
 
@@ -32,9 +28,7 @@ def generate_suggested_actions(state: dict) -> list:
         return ["👋 Hello Sahayak", "🗣️ English", "🗣️ Hindi / Hinglish"]
         
     if current_step == "onboarding":
-        if lang == "hi" or lang == "mr" or lang == "bn":
-            return ["📞 मदद चाहिए (Help)"]
-        return ["📞 Need Help"]
+        return []
 
     if current_step == "completed":
         last_intent = state.get("next_intent", "default")
@@ -45,7 +39,7 @@ def generate_suggested_actions(state: dict) -> list:
                 "pricing_query": ["💰 मूल्य विश्लेषण", "📊 प्रतियोगी कीमतें", "💡 मार्जिन टिप्स"],
                 "inventory": ["📦 स्टॉक अलर्ट", "📋 इन्वेंटरी सारांश", "📊 स्टॉक स्तर"],
                 "forecast": ["🎉 त्योहार का पूर्वानुमान", "📈 मांग भविष्यवाणी", "📊 मौसमी रुझान"],
-                "default": ["💰 कीमत (Pricing)", "📦 स्टॉक (Inventory)", "📈 बिक्री (Sales)", "🎯 पूर्वानुमान (Forecast)"]
+                "default": ["💰 कीमत (Pricing)", "📦 स्टॉक (Inventory)", "📈 बिक्री (Sales)"]
             }
         else:
             dashboard_suggestions = {
@@ -53,7 +47,7 @@ def generate_suggested_actions(state: dict) -> list:
                 "pricing_query": ["💰 Pricing Analysis", "📊 Competitor Rates", "💡 Margin Tips"],
                 "inventory": ["📦 Restock Alert", "📋 Inventory Summary", "📊 Stock Levels"],
                 "forecast": ["🎉 Festival Forecast", "📈 Demand Prediction", "📊 Seasonal Trends"],
-                "default": ["💰 Pricing", "📦 Inventory", "📈 Sales", "🎯 Forecast"]
+                "default": ["💰 Pricing", "📦 Inventory", "📈 Sales"]
             }
         return dashboard_suggestions.get(last_intent, dashboard_suggestions["default"])
     
@@ -81,6 +75,7 @@ async def webhook_incoming(payload: InboundPayload):
     Main webhook endpoint for receiving messages from Frontend Chat UI.
     """
     try:
+        image_path = None
         # Handle image processing
         if payload.image:
             try:
@@ -107,38 +102,53 @@ async def webhook_incoming(payload: InboundPayload):
             raise HTTPException(status_code=400, detail="Either 'text' or 'image' must be provided")
         
         session_id = payload.session_id or f"{payload.platform}_{payload.user_id}"
-        state = await get_conversation_state(session_id)
-        
-        # Restore messages
-        if state.get("messages"):
-            state["messages"] = restore_messages(state["messages"])
-        
-        # Add user message
         user_message = HumanMessage(content=payload.text, name=payload.user_id)
-        state["messages"] = state.get("messages", []) + [user_message]
         
-        # Add context from payload while preserving existing contextual flags
-        current_context = state.get("user_context", {})
-        state["user_context"] = {
-            **current_context,
+        print(f"--- Chat Route Triggered: {session_id} ---")
+        # Load previous conversation history manually
+        from ai_sahayak.memory.conversation import get_conversation_state, restore_messages
+        print("Fetching conversation state...")
+        prior_state = await get_conversation_state(session_id)
+        print("State fetched successfully.")
+        
+        # Restore messages and append new one
+        restored_messages = restore_messages(prior_state.get("messages", []))
+        restored_messages.append(user_message)
+        print(f"Messages restored. Count: {len(restored_messages)}")
+        
+        # Prepare inputs merging old state and new context
+        inputs = prior_state.copy()
+        inputs["messages"] = restored_messages
+        inputs["user_context"] = {
             "user_id": payload.user_id,
             "platform": payload.platform,
             "phone_number": payload.phone_number,
             **(payload.metadata or {})
         }
-
-        # Invoke the LangGraph agent
+        
+        if image_path:
+            inputs["image_path"] = image_path
+            
+        # Invoke the LangGraph agent statelessly
         try:
-            config = {"recursion_limit": 20}
-            result = await graph.ainvoke(state, config=config)
+            config = {
+                "recursion_limit": 20,
+                "configurable": {
+                    "actor_id": payload.user_id,
+                    "thread_id": f"wa-{session_id}"[:80]
+                }
+            }
+            # graph.ainvoke is now stateless as we manage input state manually
+            result = await graph.ainvoke(inputs, config=config)
         except Exception as graph_error:
             print(f"Graph invocation error: {graph_error}")
+            # Fallback result to allow replying even on failure
             result = {
-                **state,
-                "messages": state["messages"] + [AIMessage(content="I encountered an issue processing your request. How can I help you differently?")]
+                **inputs,
+                "messages": [AIMessage(content="I encountered an issue processing your request. How can I help you differently?")]
             }
         
-        ai_messages = [m for m in result["messages"] if isinstance(m, AIMessage)]
+        ai_messages = [m for m in result.get("messages", []) if isinstance(m, AIMessage)]
         reply_text = ai_messages[-1].content if ai_messages else "No response generated."
         
         # Determine if we need to translate the AI's English response back to the user's regional language
@@ -150,9 +160,6 @@ async def webhook_incoming(payload: InboundPayload):
                 reply_text, 
                 user_context.get("target_language", "hi")
             )
-        
-        # Save updated state
-        await save_conversation_state(session_id, result)
         
         # Prepare response
         response_payload = OutboundPayload(
@@ -171,6 +178,13 @@ async def webhook_incoming(payload: InboundPayload):
         if payload.callback_url:
             async with httpx.AsyncClient() as client:
                 await client.post(payload.callback_url, json=response_payload.model_dump())
+                
+        # Save readable conversation history to DynamoDB for dashboard/admin use
+        try:
+            state_to_save = dict(result)
+            await save_conversation_state(session_id, state_to_save)
+        except Exception as e:
+            print(f"Failed to save conversation history: {e}")
         
         return {
             "ok": True,

@@ -25,7 +25,17 @@ class LanguageRouterNode:
             return {"user_context": {**state.get("user_context", {}), "target_language": "en"}}
             
         detected_lang = self.detector.detect(last_message.content)
+        user_context = state.get("user_context", {})
+        prev_lang = user_context.get("target_language", "en")
         
+        # If the user previously selected a non-English language and just typed a short word or filename (which detects as EN)
+        # we should preserve their original language preference instead of snapping back to English forever.
+        if detected_lang == "en" and prev_lang != "en" and len(last_message.content.split()) < 5:
+            # Assume it's a short reply in the established language context
+            target_lang = prev_lang
+        else:
+            target_lang = detected_lang
+            
         if detected_lang != "en":
             # Translate input to English for processing
             translated_input = await self.translator.translate_to_english(
@@ -41,8 +51,8 @@ class LanguageRouterNode:
             return {
                 "messages": modified_message_list,
                 "user_context": {
-                    **state.get("user_context", {}),
-                    "target_language": detected_lang,
+                    **user_context,
+                    "target_language": target_lang,
                     "requires_translation": True,
                     "original_content": last_message.content
                 }
@@ -50,9 +60,9 @@ class LanguageRouterNode:
             
         return {
             "user_context": {
-                **state.get("user_context", {}),
-                "target_language": detected_lang,
-                "requires_translation": False
+                **user_context,
+                "target_language": target_lang,
+                "requires_translation": (target_lang != "en")
             }
         }
 

@@ -1,17 +1,34 @@
+import os
+import boto3
+import json
+import asyncio
+import datetime
+from decimal import Decimal
 from typing import Dict, Any, List
 from langchain_core.messages import BaseMessage, HumanMessage, AIMessage
-from motor.motor_asyncio import AsyncIOMotorClient
 from ai_sahayak.config.settings import settings
 
-class MongoConversationManager:
+class DynamoDBConversationManager:
     def __init__(self):
-        self.client = AsyncIOMotorClient(settings.MONGODB_URI)
-        self.db = self.client[settings.DATABASE_NAME]
-        self.collection = self.db.conversation_history
+        self.env = os.getenv("APP_ENV", "prod")
+        
+        # Always use settings-based DynamoDB to avoid local connection issues
+        # unless explicitly configured for a local mock.
+        self.dynamodb = boto3.resource(
+            "dynamodb",
+            region_name=settings.AWS_REGION,
+            aws_access_key_id=settings.AWS_ACCESS_KEY_ID,
+            aws_secret_access_key=settings.AWS_SECRET_ACCESS_KEY
+        )
+        self.table = self.dynamodb.Table("ai_sahayak_conversation_history")
 
     async def get_conversation_state(self, session_id: str) -> Dict[str, Any]:
-        doc = await self.collection.find_one({"session_id": session_id})
-        if not doc:
+        response = await asyncio.to_thread(
+            self.table.get_item,
+            Key={"session_id": session_id}
+        )
+        
+        if "Item" not in response:
             return {
                 "messages": [],
                 "current_step": "onboarding",
@@ -19,18 +36,17 @@ class MongoConversationManager:
                 "metadata": {}
             }
         
-        # We strip out _id and session_id as they aren't part of Langchain state
-        doc.pop("_id", None)
+        doc = response["Item"]
+        # remove Dynamo keys from Langchain state
         doc.pop("session_id", None)
         return doc
-
+        
     async def save_conversation_state(self, session_id: str, state: Dict[str, Any]):
-        # Serialize messages if they are LangChain objects
+        # Serialize messages
         if "messages" in state:
             serializable_messages = []
             for m in state["messages"]:
                 if isinstance(m, BaseMessage):
-                    # Standard LangChain serialization format
                     serializable_messages.append({
                         "type": m.type,
                         "content": m.content,
@@ -39,16 +55,17 @@ class MongoConversationManager:
                     })
                 else:
                     serializable_messages.append(m)
-            state["messages"] = serializable_messages
+        # Trim to last 20 messages to stay within DynamoDB's 400KB item limit
+        state["messages"] = serializable_messages[-20:]
+            
+        # Dynamodb float -> Decimal
+        state_json = json.dumps(state)
+        upsert_doc = json.loads(state_json, parse_float=Decimal)
         
-        # Upsert the state document
-        upsert_doc = state.copy()
         upsert_doc["session_id"] = session_id
-        await self.collection.update_one(
-            {"session_id": session_id},
-            {"$set": upsert_doc},
-            upsert=True
-        )
+        
+        import asyncio
+        await asyncio.to_thread(self.table.put_item, Item=upsert_doc)
 
 def restore_messages(messages: List[Dict[str, Any]]) -> List[BaseMessage]:
     restored = []
@@ -63,6 +80,6 @@ def restore_messages(messages: List[Dict[str, Any]]) -> List[BaseMessage]:
     return restored
 
 # Singleton instance
-memory_manager = MongoConversationManager()
+memory_manager = DynamoDBConversationManager()
 get_conversation_state = memory_manager.get_conversation_state
 save_conversation_state = memory_manager.save_conversation_state
