@@ -46,10 +46,28 @@ async def _resolve_by_pincode(pincode: str) -> Optional[str]:
         if not post_offices:
             return None
 
-        # Take the first post office entry as the canonical reference
-        office = post_offices[0]
+        # Prioritize post offices by branch type (more official = more accurate)
+        BRANCH_PRIORITY = {
+            "Head Post Office": 0,
+            "Sub Post Office": 1,
+            "Branch Post Office": 2,
+        }
+
+        sorted_offices = sorted(
+            post_offices,
+            key=lambda x: BRANCH_PRIORITY.get(x.get("BranchType", ""), 99)
+        )
+
+        office = sorted_offices[0]
+
+        # Use Name field (more specific locality) instead of Block (broader admin division)
+        # Clean up parenthetical district suffixes: "Naupada (Thane)" → "Naupada"
+        name = office.get("Name", "")
+        name = re.sub(r'\s*\([^)]+\)\s*$', '', name)
+
+        # Filter out "NA" or empty values
         parts = [
-            office.get("Block") or office.get("Name"),
+            name if name and name.upper() != "NA" else None,
             office.get("District"),
             office.get("State"),
         ]

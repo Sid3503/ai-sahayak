@@ -57,4 +57,5 @@ logs/
 # Temp and cached files
 tmp/
 temp/
+docs/
 .cache
