@@ -25,6 +25,7 @@ def print_header():
 def send_message(text: str):
     payload = {
         "user_id": USER_ID,
+        "phone_number": USER_ID,
         "text": text,
         "session_id": SESSION_ID,
         "platform": PLATFORM

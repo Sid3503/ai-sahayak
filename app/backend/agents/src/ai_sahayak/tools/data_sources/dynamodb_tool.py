@@ -51,21 +51,22 @@ class DynamoDBTool:
             ReturnValues="UPDATED_NEW"
         )
 
-    async def upsert_store_profile(self, user_id: str, store_name: str, location: str):
+    async def upsert_store_profile(self, user_id: str, store_name: str, location: str, pincode: str | None = None):
         """Optimally insert or update a store profile, linking to the user."""
         store_id = f"store_{user_id}"
-        
+
+        update_expr = "set owner_id = :o, #n = :n, #l = :l"
+        expr_values: dict = {":o": user_id, ":n": store_name, ":l": location}
+        expr_names: dict = {"#n": "name", "#l": "location"}
+
+        if pincode:
+            update_expr += ", pincode = :pc"
+            expr_values[":pc"] = pincode
+
         self.store_table.update_item(
             Key={"store_id": store_id},
-            UpdateExpression="set owner_id = :o, #n = :n, #l = :l",
-            ExpressionAttributeValues={
-                ":o": user_id,
-                ":n": store_name,
-                ":l": location
-            },
-            ExpressionAttributeNames={
-                "#n": "name",
-                "#l": "location"
-            },
-            ReturnValues="UPDATED_NEW"
+            UpdateExpression=update_expr,
+            ExpressionAttributeValues=expr_values,
+            ExpressionAttributeNames=expr_names,
+            ReturnValues="UPDATED_NEW",
         )

@@ -19,6 +19,8 @@ from ai_sahayak.graphs.nodes.system.memory_hooks import pre_model_hook, post_mod
 import os
 import json
 import re
+from ai_sahayak.utils.validators import validate_onboarding_field
+from ai_sahayak.utils.location_resolver import enrich_location
 
 # Initialize Prompt Registry
 prompt_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "prompts", "system")
@@ -82,6 +84,10 @@ async def onboarding_node(state: ConversationState):
         if start_idx != -1 and end_idx != -1:
             json_str = json_str[start_idx:end_idx+1]
             
+        # Clean up any rogue string concatenations the LLM might have generated
+        # e.g., "Hello" + "\n\n" + "World" -> "Hello\n\nWorld"
+        json_str = re.sub(r'"\s*\+\s*"', '', json_str)
+        
         json_str = json_str.strip()
         parsed_data = json.loads(json_str)
         
@@ -89,29 +95,52 @@ async def onboarding_node(state: ConversationState):
         extracted_data = parsed_data.get("data", {})
 
         if isinstance(extracted_data, dict):
-            # Update onboarding data in state progressively
+            validation_errors: list[str] = []
+
             for k, v in extracted_data.items():
-                if is_valid_value(v):
-                    onboarding_data[k] = v
-            
-            # DB Injection - Progressive Upsert
-            user_id = state.get("user_context", {}).get("user_id", "unknown_user")
-            phone = state.get("user_context", {}).get("phone_number")
-            
-            db_tool = DynamoDBTool()
-            if onboarding_data.get("name") or phone:
-                await db_tool.upsert_user_profile(
-                    user_id=user_id, 
-                    name=onboarding_data.get("name", "Unknown"),
-                    phone=phone
-                )
-            
-            if onboarding_data.get("store_name") or onboarding_data.get("location"):
-                await db_tool.upsert_store_profile(
-                    user_id=user_id,
-                    store_name=onboarding_data.get("store_name", "Unknown Store"),
-                    location=onboarding_data.get("location", "Unknown Location")
-                )
+                if not is_valid_value(v):
+                    continue
+                result = validate_onboarding_field(k, str(v))
+                if result.is_valid:
+                    # Store the normalized canonical value
+                    onboarding_data[k] = result.normalized if result.normalized else v
+                else:
+                    validation_errors.append(result.error)
+
+            # If any identifier failed validation, override the LLM reply with the error
+            if validation_errors:
+                error_summary = "\n".join(f"⚠️ {err}" for err in validation_errors)
+                reply_text = f"{error_summary}\n\nPlease correct the above and try again."
+
+            # DB Injection - Progressive Upsert (only when no validation errors)
+            if not validation_errors:
+                user_id = state.get("user_context", {}).get("user_id", "unknown_user")
+                phone = state.get("user_context", {}).get("phone_number")
+
+                db_tool = DynamoDBTool()
+                if onboarding_data.get("name") or phone:
+                    await db_tool.upsert_user_profile(
+                        user_id=user_id,
+                        name=onboarding_data.get("name", "Unknown"),
+                        phone=phone
+                    )
+
+                if onboarding_data.get("store_name") or onboarding_data.get("location") or onboarding_data.get("pincode"):
+                    # Resolve the best available location signal to a human-readable string
+                    raw_location = (
+                        onboarding_data.get("location")
+                        or onboarding_data.get("pincode")
+                        or "Unknown Location"
+                    )
+                    resolved_location = await enrich_location(raw_location)
+                    onboarding_data["resolved_location"] = resolved_location
+
+                    await db_tool.upsert_store_profile(
+                        user_id=user_id,
+                        store_name=onboarding_data.get("store_name", "Unknown Store"),
+                        location=resolved_location,
+                        pincode=onboarding_data.get("pincode")
+                    )
                 
     except Exception as e:
         print(f"Failed to parse onboarding JSON: {e}")
@@ -119,8 +148,10 @@ async def onboarding_node(state: ConversationState):
         reply_text = response.content
         
     # Deterministic completion check (ignore LLM's flag to avoid premature completion)
-    required_keys = ["name", "store_name", "store_type", "pincode", "location", "years_in_business", "aadhar", "gst_number"]
-    is_complete = all(is_valid_value(onboarding_data.get(k)) for k in required_keys)
+    required_keys_base = ["name", "store_name", "store_type", "years_in_business", "aadhar", "gst_number"]
+    base_complete = all(is_valid_value(onboarding_data.get(k)) for k in required_keys_base)
+    location_complete = is_valid_value(onboarding_data.get("pincode")) or is_valid_value(onboarding_data.get("location"))
+    is_complete = base_complete and location_complete
         
     if is_complete:
         new_step = "completed"

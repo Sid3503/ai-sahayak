@@ -15,6 +15,7 @@ def create_dummy_image():
 def send_message(session_id, user_id, text, language, image_b64=None):
     payload = {
         "user_id": user_id,
+        "phone_number": user_id,
         "session_id": session_id,
         "text": text,
         "platform": "test"
@@ -98,10 +99,27 @@ def run_multi_lang_test():
         {"text": "Mera shelf ka photo check karo"}
     ]
     
+    # Validator error-path: wrong Aadhar/PIN first, then corrected
+    validation_error_prompts = [
+        "hi",
+        "English",
+        "My name is Validation Tester, my shop is Test Mart",
+        "General Store",
+        "PIN 000000",          # invalid: starts with 0
+        "560001",              # corrected PIN
+        "3 years",
+        "ABC123",              # invalid Aadhar: not 12 digits
+        "5 2 8 9 1 2 0 4 8 6 2 3",  # with spaces - should normalize to 528912048623
+        "BADGSTXX",           # invalid GST: not 15 chars
+        "29AABCT1332L1ZN",    # valid GST format
+        "What is my stock?"
+    ]
+
     flows = [
         ("English", english_prompts),
         ("Hindi", hindi_prompts),
-        ("Hinglish", hinglish_prompts)
+        ("Hinglish", hinglish_prompts),
+        ("Validation-Error-Path", validation_error_prompts),
     ]
     
     # Run sequentially for clearer output tracking in terminal
