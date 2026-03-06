@@ -1,0 +1,359 @@
+[
+  {
+    "date": "2026-02-26",
+    "seasonality_index": 1.0267771712163023,
+    "sku_trend_monthly_pct": -0.0071171892796833905,
+    "traces": {
+      "base": {
+        "conservative": 194.6,
+        "neutral": 198.57,
+        "aggressive": 208.5
+      },
+      "promo": {
+        "conservative": 194.6,
+        "neutral": 198.57,
+        "aggressive": 208.5
+      },
+      "competitor": {
+        "conservative": 194.6,
+        "neutral": 198.57,
+        "aggressive": 195.86
+      },
+      "inventory": {
+        "conservative": 194.6,
+        "neutral": 198.57,
+        "aggressive": 195.86
+      }
+    },
+    "candidates": {
+      "price_base": {
+        "price": 194.6,
+        "pred_units": 97.76526432128036,
+        "elasticity": -0.1
+      },
+      "price_optimal": {
+        "price": 198.57,
+        "pred_units": 97.56802159211144,
+        "elasticity": -0.1
+      },
+      "price_aggressive": {
+        "price": 202.81,
+        "pred_units": 97.36209849017105,
+        "elasticity": -0.1
+      }
+    },
+    "selection": {
+      "price_recommended": 198.57,
+      "source_key": "price_optimal",
+      "margin_pct": 14.92,
+      "change_pct": 3.43,
+      "approval": "Manager Review"
+    }
+  },
+  {
+    "date": "2026-02-27",
+    "seasonality_index": 1.0267771712163023,
+    "sku_trend_monthly_pct": -0.0071171892796833905,
+    "traces": {
+      "base": {
+        "conservative": 194.6,
+        "neutral": 198.57,
+        "aggressive": 208.5
+      },
+      "promo": {
+        "conservative": 194.6,
+        "neutral": 198.57,
+        "aggressive": 208.5
+      },
+      "competitor": {
+        "conservative": 194.6,
+        "neutral": 198.57,
+        "aggressive": 195.86
+      },
+      "inventory": {
+        "conservative": 194.6,
+        "neutral": 198.57,
+        "aggressive": 195.86
+      }
+    },
+    "candidates": {
+      "price_base": {
+        "price": 194.6,
+        "pred_units": 103.15298620306778,
+        "elasticity": -0.1
+      },
+      "price_optimal": {
+        "price": 198.57,
+        "pred_units": 102.94487367289804,
+        "elasticity": -0.1
+      },
+      "price_aggressive": {
+        "price": 202.81,
+        "pred_units": 102.72760240543084,
+        "elasticity": -0.1
+      }
+    },
+    "selection": {
+      "price_recommended": 198.57,
+      "source_key": "price_optimal",
+      "margin_pct": 14.92,
+      "change_pct": 3.43,
+      "approval": "Manager Review"
+    }
+  },
+  {
+    "date": "2026-02-28",
+    "seasonality_index": 1.0267771712163023,
+    "sku_trend_monthly_pct": -0.0071171892796833905,
+    "traces": {
+      "base": {
+        "conservative": 194.6,
+        "neutral": 198.57,
+        "aggressive": 208.5
+      },
+      "promo": {
+        "conservative": 194.6,
+        "neutral": 198.57,
+        "aggressive": 208.5
+      },
+      "competitor": {
+        "conservative": 194.6,
+        "neutral": 198.57,
+        "aggressive": 195.86
+      },
+      "inventory": {
+        "conservative": 194.6,
+        "neutral": 198.57,
+        "aggressive": 195.86
+      }
+    },
+    "candidates": {
+      "price_base": {
+        "price": 194.6,
+        "pred_units": 99.24047016963057,
+        "elasticity": -0.1
+      },
+      "price_optimal": {
+        "price": 198.57,
+        "pred_units": 99.04025119291981,
+        "elasticity": -0.1
+      },
+      "price_aggressive": {
+        "price": 202.81,
+        "pred_units": 98.83122086300432,
+        "elasticity": -0.1
+      }
+    },
+    "selection": {
+      "price_recommended": 198.57,
+      "source_key": "price_optimal",
+      "margin_pct": 14.92,
+      "change_pct": 3.43,
+      "approval": "Manager Review"
+    }
+  },
+  {
+    "date": "2026-03-01",
+    "seasonality_index": 0.9999999999904038,
+    "sku_trend_monthly_pct": -0.0071171892796833905,
+    "traces": {
+      "base": {
+        "conservative": 189.53,
+        "neutral": 193.39,
+        "aggressive": 203.06
+      },
+      "promo": {
+        "conservative": 191.98,
+        "neutral": 193.39,
+        "aggressive": 203.06
+      },
+      "competitor": {
+        "conservative": 191.98,
+        "neutral": 193.39,
+        "aggressive": 194.77
+      },
+      "inventory": {
+        "conservative": 191.98,
+        "neutral": 193.39,
+        "aggressive": 194.77
+      }
+    },
+    "candidates": {
+      "price_base": {
+        "price": 191.37,
+        "pred_units": 94.93237522969942,
+        "elasticity": -0.1
+      },
+      "price_optimal": {
+        "price": 193.39,
+        "pred_units": 94.83274714105607,
+        "elasticity": -0.1
+      },
+      "price_aggressive": {
+        "price": 199.33,
+        "pred_units": 94.54628442340298,
+        "elasticity": -0.1
+      }
+    },
+    "selection": {
+      "price_recommended": 193.39,
+      "source_key": "price_optimal",
+      "margin_pct": 12.64,
+      "change_pct": 0.73,
+      "approval": "Auto-approve"
+    }
+  },
+  {
+    "date": "2026-03-02",
+    "seasonality_index": 0.9999999999904038,
+    "sku_trend_monthly_pct": -0.0071171892796833905,
+    "traces": {
+      "base": {
+        "conservative": 189.53,
+        "neutral": 193.39,
+        "aggressive": 203.06
+      },
+      "promo": {
+        "conservative": 191.98,
+        "neutral": 193.39,
+        "aggressive": 203.06
+      },
+      "competitor": {
+        "conservative": 191.98,
+        "neutral": 193.39,
+        "aggressive": 194.77
+      },
+      "inventory": {
+        "conservative": 191.98,
+        "neutral": 193.39,
+        "aggressive": 194.77
+      }
+    },
+    "candidates": {
+      "price_base": {
+        "price": 191.37,
+        "pred_units": 100.57894334983297,
+        "elasticity": -0.1
+      },
+      "price_optimal": {
+        "price": 193.39,
+        "pred_units": 100.47338939250844,
+        "elasticity": -0.1
+      },
+      "price_aggressive": {
+        "price": 199.33,
+        "pred_units": 100.16988790125264,
+        "elasticity": -0.1
+      }
+    },
+    "selection": {
+      "price_recommended": 193.39,
+      "source_key": "price_optimal",
+      "margin_pct": 12.64,
+      "change_pct": 0.73,
+      "approval": "Auto-approve"
+    }
+  },
+  {
+    "date": "2026-03-03",
+    "seasonality_index": 0.9999999999904038,
+    "sku_trend_monthly_pct": -0.0071171892796833905,
+    "traces": {
+      "base": {
+        "conservative": 189.53,
+        "neutral": 193.39,
+        "aggressive": 203.06
+      },
+      "promo": {
+        "conservative": 191.98,
+        "neutral": 193.39,
+        "aggressive": 203.06
+      },
+      "competitor": {
+        "conservative": 191.98,
+        "neutral": 193.39,
+        "aggressive": 194.77
+      },
+      "inventory": {
+        "conservative": 191.98,
+        "neutral": 193.39,
+        "aggressive": 194.77
+      }
+    },
+    "candidates": {
+      "price_base": {
+        "price": 191.37,
+        "pred_units": 100.2584538199922,
+        "elasticity": -0.1
+      },
+      "price_optimal": {
+        "price": 193.39,
+        "pred_units": 100.15323620481871,
+        "elasticity": -0.1
+      },
+      "price_aggressive": {
+        "price": 199.33,
+        "pred_units": 99.85070180515284,
+        "elasticity": -0.1
+      }
+    },
+    "selection": {
+      "price_recommended": 193.39,
+      "source_key": "price_optimal",
+      "margin_pct": 12.64,
+      "change_pct": 0.73,
+      "approval": "Auto-approve"
+    }
+  },
+  {
+    "date": "2026-03-04",
+    "seasonality_index": 0.9999999999904038,
+    "sku_trend_monthly_pct": -0.0071171892796833905,
+    "traces": {
+      "base": {
+        "conservative": 189.53,
+        "neutral": 193.39,
+        "aggressive": 203.06
+      },
+      "promo": {
+        "conservative": 191.98,
+        "neutral": 193.39,
+        "aggressive": 203.06
+      },
+      "competitor": {
+        "conservative": 191.98,
+        "neutral": 193.39,
+        "aggressive": 194.77
+      },
+      "inventory": {
+        "conservative": 191.98,
+        "neutral": 193.39,
+        "aggressive": 194.77
+      }
+    },
+    "candidates": {
+      "price_base": {
+        "price": 191.37,
+        "pred_units": 94.71575990513534,
+        "elasticity": -0.1
+      },
+      "price_optimal": {
+        "price": 193.39,
+        "pred_units": 94.6163591464277,
+        "elasticity": -0.1
+      },
+      "price_aggressive": {
+        "price": 199.33,
+        "pred_units": 94.33055007527203,
+        "elasticity": -0.1
+      }
+    },
+    "selection": {
+      "price_recommended": 193.39,
+      "source_key": "price_optimal",
+      "margin_pct": 12.64,
+      "change_pct": 0.73,
+      "approval": "Auto-approve"
+    }
+  }
+]

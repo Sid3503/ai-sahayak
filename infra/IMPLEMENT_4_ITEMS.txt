@@ -1,0 +1,39 @@
+4 ITEMS FOR MARCH 4 DEADLINE – WHAT'S DONE + WHAT TO DO
+========================================================
+
+1. EVENT CONFIDENCE SCORE (0–100) ................................. DONE
+   - Lambda: event_confidence_score(days_until, event_type) in alerts_handler.py
+   - Webhook payload includes event_confidence_score
+   - Backend stores it; Live Alerts UI shows "X% confidence" on alert bubbles
+   - Copy updated Lambda code to console and redeploy.
+
+2. SYSTEMS MANAGER CHANGE CALENDAR ............................... DONE
+   - Lambda: _check_change_calendar_open() at start of handler
+   - If env SSM_CALENDAR_NAME is set and calendar state is CLOSED, Lambda skips run
+   - In AWS Console:
+     a) Create a Change Calendar (SSM → Change Calendar → Create)
+        Name: ai-sahayak-panchang (or any name)
+     b) Add calendar entries: set dates/times when calendar is OPEN (e.g. festival alert windows)
+     c) Lambda env: SSM_CALENDAR_NAME = ai-sahayak-panchang
+     d) Lambda IAM: add ssm:GetCalendarState on that calendar resource
+   - If you leave SSM_CALENDAR_NAME empty, Lambda runs as before (no calendar check).
+
+3. KNOWLEDGE BASES FOR BEDROCK .................................... DONE
+   - KB created (ai-sahayak-panchang, ID PF0KY6SM7W), data source panchang-s3 synced (19 files).
+   - Backend: tools/data_sources/bedrock_knowledge_base.py — retrieve_from_panchang_kb(query) using
+     boto3 bedrock-agent-runtime retrieve(). general_chat_node and forecast_query_node call it and
+     inject retrieved Panchang/festival chunks into the LLM system prompt.
+   - IAM: Backend role (or credentials) needs bedrock:Retrieve for the Knowledge Base (and
+     bedrock-agent-runtime if using resource-based policies). Region: ap-south-1.
+   - Doc: https://docs.aws.amazon.com/bedrock/latest/userguide/knowledge-base.html
+
+4. SAGEMAKER (FORECAST + WHAT-IF) ................................. YOU DO
+   - Option A – SageMaker Canvas (no code):
+     - Upload a small CSV (date, sales or demand) for a store
+     - Create time-series forecast, export or use Canvas API
+     - Lambda or backend calls the forecast for "next 7 days" and can include in alert or dashboard
+   - Option B – What-If:
+     - Keep dashboard slider; add a backend endpoint that computes revenue/margin change
+       (e.g. revenue_new = volume * (1 + elasticity * discount/100) * price * (1 - discount/100))
+     - Optional: deploy a tiny SageMaker endpoint that does this math so "SageMaker" is in the architecture
+   - Doc: https://docs.aws.amazon.com/sagemaker/latest/dg/canvas.html

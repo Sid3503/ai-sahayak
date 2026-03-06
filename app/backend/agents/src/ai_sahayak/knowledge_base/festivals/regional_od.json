@@ -1,0 +1,15 @@
+{
+  "state": "Odisha",
+  "state_code": "OD",
+  "cities": ["Bhubaneswar", "Cuttack", "Puri", "Rourkela", "Berhampur", "Sambalpur"],
+  "description": "Regional festivals for Odisha shopkeepers",
+  "events": [
+    { "id": "od-rath-yatra-2026",         "name": "Rath Yatra (Puri)",          "date": "2026-07-01", "type": "regional", "alert_days": [14,7,5,3,1], "stock_hint": "Puja items, Sweets, Dry fruits — millions of pilgrims, entire state buzzes", "cities": ["Puri"] },
+    { "id": "od-durga-puja-2026",         "name": "Durga Puja (Odisha)",        "date": "2026-10-14", "type": "regional", "alert_days": [7,5,3,1], "stock_hint": "New clothes, Sweets (Chhena poda), Puja items" },
+    { "id": "od-kumar-purnima-2026",      "name": "Kumar Purnima",              "date": "2026-10-20", "type": "regional", "alert_days": [5,3,1],  "stock_hint": "Sweets, Fruits, Flowers, Khiri (Rice pudding) ingredients" },
+    { "id": "od-nuakhai-2026",            "name": "Nuakhai (Western Odisha)",   "date": "2026-09-01", "type": "regional", "alert_days": [7,5,3,1], "stock_hint": "New rice, Sweets, Puja items — harvest welcome festival" },
+    { "id": "od-raja-parba-2026",         "name": "Raja Parba",                 "date": "2026-06-14", "type": "regional", "alert_days": [5,3,1],  "stock_hint": "Swings, Pana (drinks), Sweets, New clothes — women's festival" },
+    { "id": "od-diwali-2026",             "name": "Deepavali (Odisha)",         "date": "2026-11-08", "type": "regional", "alert_days": [7,5,3,1], "stock_hint": "Diyas, Sweets, Dry fruits, Fireworks" },
+    { "id": "od-school-reopen-2026",      "name": "School Reopening (OD)",      "date": "2026-06-01", "type": "local",    "alert_days": [14,7,3,1], "stock_hint": "Stationery, Snacks, Books" }
+  ]
+}

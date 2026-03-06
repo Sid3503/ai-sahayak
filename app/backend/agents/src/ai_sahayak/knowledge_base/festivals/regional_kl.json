@@ -1,0 +1,15 @@
+{
+  "state": "Kerala",
+  "state_code": "KL",
+  "cities": ["Thiruvananthapuram", "Kochi", "Kozhikode", "Thrissur", "Palakkad", "Kannur"],
+  "description": "Regional festivals for Kerala shopkeepers",
+  "events": [
+    { "id": "kl-onam-2026",               "name": "Onam",                       "date": "2026-09-07", "type": "regional", "alert_days": [14,7,5,3,1], "stock_hint": "Rice, Banana chips, Coconut oil, Payasam, Avial ingredients, New clothes" },
+    { "id": "kl-vishu-2026",              "name": "Vishu (Kerala New Year)",    "date": "2026-04-14", "type": "regional", "alert_days": [7,5,3,1], "stock_hint": "Kani items (coconut, flowers, fruits), New clothes, Gold, Sweets" },
+    { "id": "kl-thrissur-pooram-2026",    "name": "Thrissur Pooram",            "date": "2026-04-28", "type": "local",    "alert_days": [7,3,1],  "stock_hint": "Snacks, Cold drinks, FMCG — hundreds of thousands attend", "cities": ["Thrissur"] },
+    { "id": "kl-christmas-2026",          "name": "Christmas (Kerala)",         "date": "2026-12-25", "type": "regional", "alert_days": [7,5,3,1], "stock_hint": "Cakes, Plum cake, Chocolates, Candles — KL has large Christian population" },
+    { "id": "kl-eid-2026",                "name": "Eid (Kerala — Malabar)",     "date": "2026-03-31", "type": "regional", "alert_days": [7,5,3,1], "stock_hint": "Sewai, Dates, Biryani spices, Halwa — Malabar region large Muslim pop" },
+    { "id": "kl-attukal-pongala-2026",    "name": "Attukal Pongala",            "date": "2026-02-28", "type": "local",    "alert_days": [5,3,1],  "stock_hint": "Rice, Jaggery, Coconut, Stove fuel — millions of women cook Pongala", "cities": ["Thiruvananthapuram"] },
+    { "id": "kl-school-reopen-2026",      "name": "School Reopening (KL)",      "date": "2026-06-01", "type": "local",    "alert_days": [14,7,3,1], "stock_hint": "Stationery, Snacks, Books, Tiffin items" }
+  ]
+}

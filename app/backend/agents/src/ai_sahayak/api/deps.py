@@ -1,13 +1,24 @@
-from typing import Generator
-from ai_sahayak.config.settings import settings
-from motor.motor_asyncio import AsyncIOMotorClient
+# Optional MongoDB deps (deprecated – we use DynamoDB for conversation and profiles).
+# Kept for backward compatibility if any script still needs them.
+from typing import Generator, Any
 
-def get_mongodb_client() -> Generator:
-    client = AsyncIOMotorClient(settings.MONGODB_URI)
+def get_mongodb_client() -> Generator[Any, None, None]:
     try:
-        yield client
-    finally:
-        client.close()
+        from motor.motor_asyncio import AsyncIOMotorClient
+        from ai_sahayak.config.settings import settings
+        if getattr(settings, "MONGODB_URI", ""):
+            client = AsyncIOMotorClient(settings.MONGODB_URI)
+            try:
+                yield client
+            finally:
+                client.close()
+            return
+    except Exception:
+        pass
+    yield None
 
-def get_database(client: AsyncIOMotorClient = Depends(get_mongodb_client)):
-    return client[settings.DATABASE_NAME]
+def get_database(client: Any = None):
+    if client is None:
+        return None
+    from ai_sahayak.config.settings import settings
+    return client[getattr(settings, "DATABASE_NAME", "ai_sahayak")]

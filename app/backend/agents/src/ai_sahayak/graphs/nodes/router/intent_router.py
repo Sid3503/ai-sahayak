@@ -16,6 +16,9 @@ async def classify_intent_node(state: ConversationState):
     - pricing_query: Competitor pricing, market rates, margin analysis, price changes
     - inventory: Stock levels, inventory management, restocking needs, shelf space
     - forecast: Demand forecasting, seasonal trends, festival predictions
+    - image_analysis: User uploading a photo of their store shelves or stock for analysis
+    - alert_query: Questions starting with 'what if', or asking about alerts, simulations, festivals, active alerts
+    - alert_preferences: User wants to change alert settings (e.g. "7 din pehle batao", "subah 8 baje bhejo", "9 baje alert chahiye")
     - general_chat: General business advice, store operations, greetings, non-specific queries
     
     Respond ONLY with the exact category name. No explanations.
@@ -25,9 +28,13 @@ async def classify_intent_node(state: ConversationState):
     
     user_message = state["messages"][-1].content if state["messages"] else ""
     
+    # Fast path: if the payload included an image, force image analysis intent
+    if state.get("image_path"):
+        return {"next_intent": "image_analysis"}
+    
     response = await llm.ainvoke([SystemMessage(content=intent_classifier_prompt.format(user_message=user_message))])
     
-    intent_match = re.search(r"(sales_query|pricing_query|inventory|forecast|general_chat)", response.content)
+    intent_match = re.search(r"(sales_query|pricing_query|inventory|forecast|image_analysis|alert_query|alert_preferences|general_chat)", response.content)
     intent = intent_match.group(1) if intent_match else "general_chat"
     
     return {"next_intent": intent}

@@ -1,0 +1,65 @@
+{
+  "timestamp": "2026-02-25 16:44:40",
+  "sku": "gcpl_sku_0003",
+  "channel": "mt",
+  "region": "north",
+  "agents": {
+    "base": {
+      "conservative": 180.62,
+      "neutral": 184.31,
+      "aggressive": 193.52
+    },
+    "promo": {
+      "conservative": 180.62,
+      "neutral": 184.31,
+      "aggressive": 193.52
+    },
+    "competitor": {
+      "conservative": 180.62,
+      "neutral": 184.31,
+      "aggressive": 193.52
+    },
+    "inventory": {
+      "conservative": 180.62,
+      "neutral": 184.31,
+      "aggressive": 193.52
+    }
+  },
+  "candidates": {
+    "price_base": {
+      "price": 180.62,
+      "pred_units": 1.0683369863513577,
+      "elasticity": -0.1
+    },
+    "price_optimal": {
+      "price": 184.31,
+      "pred_units": 1.066178592070125,
+      "elasticity": -0.1
+    },
+    "price_aggressive": {
+      "price": 193.52,
+      "pred_units": 1.0609923740693243,
+      "elasticity": -0.1
+    }
+  },
+  "selection": {
+    "price_recommended": 193.52,
+    "source_key": "price_aggressive",
+    "margin_pct": 12.7,
+    "change_pct": 0.8,
+    "approval": "Auto-approve"
+  },
+  "agent_explanations": {
+    "base": "[fallback] Agent base produced {'conservative': 180.62, 'neutral': 184.31, 'aggressive': 193.52} (LLM error: You must specify a region.)",
+    "promo": "[fallback] Agent promo produced {'conservative': 180.62, 'neutral': 184.31, 'aggressive': 193.52} (LLM error: You must specify a region.)",
+    "competitor": "[fallback] Agent competitor produced {'conservative': 180.62, 'neutral': 184.31, 'aggressive': 193.52} (LLM error: You must specify a region.)",
+    "inventory": "[fallback] Agent inventory produced {'conservative': 180.62, 'neutral': 184.31, 'aggressive': 193.52} (LLM error: You must specify a region.)"
+  },
+  "candidate_explanations": {
+    "price_base": "[fallback] Candidate price_base: {'price': 180.62, 'pred_units': 1.0683369863513577, 'elasticity': -0.1} (LLM error: You must specify a region.)",
+    "price_optimal": "[fallback] Candidate price_optimal: {'price': 184.31, 'pred_units': 1.066178592070125, 'elasticity': -0.1} (LLM error: You must specify a region.)",
+    "price_aggressive": "[fallback] Candidate price_aggressive: {'price': 193.52, 'pred_units': 1.0609923740693243, 'elasticity': -0.1} (LLM error: You must specify a region.)"
+  },
+  "final_explanation": "[fallback] Final selection {'price_recommended': 193.52, 'source_key': 'price_aggressive', 'margin_pct': 12.7, 'change_pct': 0.8, 'approval': 'Auto-approve'} (LLM error: You must specify a region.)",
+  "sop_source": "C:\\Users\\mishr\\OneDrive\\Desktop\\ai-sahayak\\Dynamic Pricing Simulator and Promo Optimizer Build Requirements.docx"
+}

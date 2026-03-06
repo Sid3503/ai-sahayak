@@ -1,0 +1,16 @@
+{
+  "state": "Rajasthan",
+  "state_code": "RJ",
+  "cities": ["Jaipur", "Jodhpur", "Udaipur", "Kota", "Ajmer", "Bikaner", "Alwar"],
+  "description": "Regional festivals for Rajasthan shopkeepers",
+  "events": [
+    { "id": "rj-gangaur-2026",            "name": "Gangaur (Rajasthan)",        "date": "2026-03-21", "type": "regional", "alert_days": [7,5,3,1], "stock_hint": "Bangles, Sindur, Mehendi, Sweets, Puja items — big women's festival" },
+    { "id": "rj-teej-2026",               "name": "Teej (Rajasthan)",           "date": "2026-07-24", "type": "regional", "alert_days": [7,5,3,1], "stock_hint": "Mehendi, Bangles, Ghewar, Lehariya sarees, Sweets" },
+    { "id": "rj-pushkar-mela-2026",       "name": "Pushkar Mela",               "date": "2026-11-14", "type": "local",    "alert_days": [14,7,3,1], "stock_hint": "Handicrafts, Snacks, FMCG — huge tourist inflow", "cities": ["Ajmer", "Pushkar"] },
+    { "id": "rj-diwali-2026",             "name": "Diwali (Rajasthan)",         "date": "2026-11-08", "type": "regional", "alert_days": [14,7,5,3,1], "stock_hint": "Sweets, Dry fruits, Diyas, Fireworks, Gift packs — Jaipur big shopping city" },
+    { "id": "rj-holi-2026",              "name": "Holi (Rajasthan)",            "date": "2026-03-04", "type": "regional", "alert_days": [7,5,3,1], "stock_hint": "Gulal, Bhang, Thandai, Pichkari — Rajasthan has grand Holi" },
+    { "id": "rj-janmashtami-mathura-2026","name": "Janmashtami (RJ)",           "date": "2026-09-05", "type": "regional", "alert_days": [5,3,1],  "stock_hint": "Makhan, Mishri, Dahi, Sweets — high demand in Vrindavan-belt" },
+    { "id": "rj-wedding-season-2026",     "name": "Wedding Season (RJ)",        "date": "2026-11-20", "type": "local",    "alert_days": [14,7,3,1], "stock_hint": "Dry fruits, Mithai boxes, Gift sets, Badam, Kesar — heavy demand" },
+    { "id": "rj-school-reopen-2026",      "name": "School Reopening (RJ)",      "date": "2026-06-15", "type": "local",    "alert_days": [14,7,3,1], "stock_hint": "Stationery, Snacks, Tiffin items, Daily-use" }
+  ]
+}

@@ -1,0 +1,24 @@
+{
+  "state": "Madhya Pradesh",
+  "state_code": "MP",
+  "cities": ["Indore", "Bhopal", "Gwalior", "Jabalpur", "Ujjain", "Ratlam", "Dewas"],
+  "description": "Regional festivals and events for Madhya Pradesh shopkeepers",
+  "events": [
+    { "id": "mp-rangpanchami-2026",       "name": "Rangpanchami (MP)",          "date": "2026-03-09", "type": "regional", "alert_days": [5,3,1], "stock_hint": "Gulal, Rang, Pichkari — big in Indore, bigger than Holi itself!" },
+    { "id": "mp-mahavir-jayanti-2026",    "name": "Mahavir Jayanti",            "date": "2026-04-10", "type": "regional", "alert_days": [5,3,1], "stock_hint": "Dry fruits, Sweets, Jain faral items" },
+    { "id": "mp-akti-2026",               "name": "Akti / Akha Teej (MP)",      "date": "2026-04-21", "type": "regional", "alert_days": [5,3,1], "stock_hint": "Gold, Sweets, Pooja items — wedding season kickoff" },
+    { "id": "mp-wedding-season-apr-2026", "name": "Wedding Season (MP) — April","date": "2026-04-25", "type": "local",    "alert_days": [14,7,3,1], "stock_hint": "Dry fruits, Mithai, Gifting items, Decorative sweets" },
+    { "id": "mp-kabir-jayanti-2026",      "name": "Kabir Jayanti",              "date": "2026-06-10", "type": "regional", "alert_days": [3,1],   "stock_hint": "Incense, Bhajan books, general supplies" },
+    { "id": "mp-school-reopen-2026",      "name": "School Reopening (MP)",      "date": "2026-06-15", "type": "local",    "alert_days": [14,7,3,1], "stock_hint": "Stationery, Notebooks, Snacks, Biscuits, Daily-use items" },
+    { "id": "mp-hariyali-teej-2026",      "name": "Hariyali Teej",              "date": "2026-07-24", "type": "regional", "alert_days": [5,3,1], "stock_hint": "Mehendi, Bangles, Sweets, Singhara" },
+    { "id": "mp-nag-panchami-2026",       "name": "Nag Panchami",               "date": "2026-07-28", "type": "regional", "alert_days": [3,1],   "stock_hint": "Milk, Flowers, Pooja items" },
+    { "id": "mp-rakshabandhan-prep-2026", "name": "Rakhi Shopping Rush (MP)",   "date": "2026-08-25", "type": "local",    "alert_days": [7,3,1], "stock_hint": "Rakhi sets, Chocolates, Gift boxes, Mithai — heavy demand" },
+    { "id": "mp-ganesh-sthapana-2026",    "name": "Ganesh Sthapana (MP)",       "date": "2026-09-10", "type": "regional", "alert_days": [7,5,3,1], "stock_hint": "Modak, Coconut, Incense, Flowers, Prasad items" },
+    { "id": "mp-pitru-paksha-2026",       "name": "Pitru Paksha (Shradh)",      "date": "2026-09-24", "type": "regional", "alert_days": [5,3,1], "stock_hint": "Til, Gur, Rice, Sesame seeds, Flowers — 15-day ritual" },
+    { "id": "mp-dussehra-fair-2026",      "name": "Dussehra Mela (Indore)",     "date": "2026-10-18", "type": "local",    "alert_days": [7,5,3,1], "stock_hint": "Snacks, Cold drinks, FMCG — huge footfall near Vijay Nagar" },
+    { "id": "mp-dhanteras-2026",          "name": "Dhanteras",                  "date": "2026-11-06", "type": "regional", "alert_days": [7,5,3,1], "stock_hint": "Brooms, Diyas, Utensils, Sweets — must-have stock day" },
+    { "id": "mp-diwali-shopping-2026",    "name": "Diwali Shopping Rush (MP)",  "date": "2026-11-01", "type": "local",    "alert_days": [14,7,3,1], "stock_hint": "Gift packs, Dry fruits, Mithai boxes, Diyas, Decorations — peak season" },
+    { "id": "mp-kartik-purnima-2026",     "name": "Kartik Purnima / Dev Deepawali","date": "2026-11-23", "type": "regional", "alert_days": [3,1], "stock_hint": "Diyas, Camphor, Flowers, Milk" },
+    { "id": "mp-indore-mela-2026",        "name": "Indore Trade Fair / Mela",   "date": "2026-09-20", "type": "local",    "alert_days": [14,7,3,1], "stock_hint": "Snacks, FMCG, Cold drinks — city-wide footfall boost", "cities": ["Indore"] }
+  ]
+}

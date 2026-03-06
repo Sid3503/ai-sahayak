@@ -1,3 +1,5 @@
+# DEPRECATED: We use DynamoDB now. Use tools.data_sources.dynamodb_tool.DynamoDBTool instead.
+# Kept only for reference or legacy scripts.
 from motor.motor_asyncio import AsyncIOMotorClient
 from ai_sahayak.config.settings import settings
 

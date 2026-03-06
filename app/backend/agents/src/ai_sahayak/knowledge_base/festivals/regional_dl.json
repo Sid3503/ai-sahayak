@@ -1,0 +1,16 @@
+{
+  "state": "Delhi NCR",
+  "state_code": "DL",
+  "cities": ["Delhi", "Noida", "Gurgaon", "Faridabad", "Ghaziabad"],
+  "description": "Regional festivals and events for Delhi NCR shopkeepers",
+  "events": [
+    { "id": "dl-diwali-shopping-rush-2026","name": "Diwali Shopping Rush (Delhi)","date": "2026-10-25", "type": "local", "alert_days": [14,7,3,1], "stock_hint": "Gift packs, Electronics, Sweets, Dry fruits, Clothes — Lajpat Nagar, Sarojini surge" },
+    { "id": "dl-holi-2026",               "name": "Holi (Delhi)",               "date": "2026-03-04", "type": "regional", "alert_days": [7,5,3,1], "stock_hint": "Gulal, Bhang, Thandai, Pichkari, Cold drinks — massive city party" },
+    { "id": "dl-eid-2026",                "name": "Eid (Delhi)",                "date": "2026-03-31", "type": "regional", "alert_days": [7,5,3,1], "stock_hint": "Sewai, Dates, Biryani masala, Ittar, Halwa — Jama Masjid area huge" },
+    { "id": "dl-karwa-chauth-2026",       "name": "Karwa Chauth",               "date": "2026-10-22", "type": "regional", "alert_days": [7,5,3,1], "stock_hint": "Karwa set, Mehendi, Mithai, Jewellery items, Sargi items" },
+    { "id": "dl-lohri-2026",              "name": "Lohri (Delhi/NCR)",          "date": "2026-01-13", "type": "regional", "alert_days": [5,3,1],  "stock_hint": "Rewri, Gajak, Peanuts, Popcorn, Til — Punjabi community in Delhi is massive" },
+    { "id": "dl-republic-day-2026",       "name": "Republic Day (Delhi)",       "date": "2026-01-26", "type": "local",    "alert_days": [3,1],    "stock_hint": "Tricolor items, Sweets, Cold drinks — schools/offices buy heavily" },
+    { "id": "dl-navratri-2026",           "name": "Navratri (Delhi)",           "date": "2026-10-09", "type": "regional", "alert_days": [7,5,3,1], "stock_hint": "Farali items, Sabudana, Kuttu, Singhara atta, Fruits, Dahi" },
+    { "id": "dl-school-reopen-2026",      "name": "School Reopening (Delhi)",   "date": "2026-04-01", "type": "local",    "alert_days": [14,7,3,1], "stock_hint": "Stationery, Snacks, Biscuits, Tiffin items" }
+  ]
+}
