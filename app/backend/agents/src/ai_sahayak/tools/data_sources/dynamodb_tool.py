@@ -21,9 +21,27 @@ def _get_resource():
 
 class DynamoDBTool:
     def __init__(self):
-        self.dynamodb = _get_resource()
-        self.user_table = self.dynamodb.Table(settings.USERS_TABLE)
-        self.store_table = self.dynamodb.Table(getattr(settings, "STORES_TABLE", "ai-sahayak-stores"))
+        self._dynamodb = None
+        self._user_table = None
+        self._store_table = None
+    
+    @property
+    def dynamodb(self):
+        if self._dynamodb is None:
+            self._dynamodb = _get_resource()
+        return self._dynamodb
+    
+    @property
+    def user_table(self):
+        if self._user_table is None:
+            self._user_table = self.dynamodb.Table(settings.USERS_TABLE)
+        return self._user_table
+    
+    @property
+    def store_table(self):
+        if self._store_table is None:
+            self._store_table = self.dynamodb.Table(getattr(settings, "STORES_TABLE", "ai-sahayak-stores"))
+        return self._store_table
 
     async def get_store_profile(self, store_id: str):
         """Get store profile by store_id (e.g. store_<user_id>)."""

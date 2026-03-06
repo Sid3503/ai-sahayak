@@ -31,25 +31,9 @@ def generate_suggested_actions(state: dict) -> list:
         return []
 
     if current_step == "completed":
-        last_intent = state.get("next_intent", "default")
-        
-        if lang == "hi" or lang == "mr" or lang == "bn":
-            dashboard_suggestions = {
-                "sales_query": ["📈 आज की बिक्री", "📊 साप्ताहिक रिपोर्ट", "📉 पिछले महीने की बिक्री"],
-                "pricing_query": ["💰 मूल्य विश्लेषण", "📊 प्रतियोगी कीमतें", "💡 मार्जिन टिप्स"],
-                "inventory": ["📦 स्टॉक अलर्ट", "📋 इन्वेंटरी सारांश", "📊 स्टॉक स्तर"],
-                "forecast": ["🎉 त्योहार का पूर्वानुमान", "📈 मांग भविष्यवाणी", "📊 मौसमी रुझान"],
-                "default": ["💰 कीमत (Pricing)", "📦 स्टॉक (Inventory)", "📈 बिक्री (Sales)"]
-            }
-        else:
-            dashboard_suggestions = {
-                "sales_query": ["📈 Today's Sales", "📊 Weekly Report", "📉 Month-over-Month"],
-                "pricing_query": ["💰 Pricing Analysis", "📊 Competitor Rates", "💡 Margin Tips"],
-                "inventory": ["📦 Restock Alert", "📋 Inventory Summary", "📊 Stock Levels"],
-                "forecast": ["🎉 Festival Forecast", "📈 Demand Prediction", "📊 Seasonal Trends"],
-                "default": ["💰 Pricing", "📦 Inventory", "📈 Sales"]
-            }
-        return dashboard_suggestions.get(last_intent, dashboard_suggestions["default"])
+        # Don't show Pricing/Inventory/Sales buttons for web demo users
+        # Only show them for known retailers with actual dashboard data
+        return []
     
     return []
 

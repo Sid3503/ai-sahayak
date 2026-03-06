@@ -110,6 +110,17 @@ function getOrCreateSessionId(): string {
   return sid
 }
 
+function getOrCreateUserId(): string {
+  const USER_ID_KEY = 'ai_sahayak_user_id'
+  if (typeof window === 'undefined') return 'web_user_temp'
+  let uid = localStorage.getItem(USER_ID_KEY)
+  if (!uid) {
+    uid = `web_${Math.random().toString(36).slice(2, 11)}`
+    localStorage.setItem(USER_ID_KEY, uid)
+  }
+  return uid
+}
+
 function App() {
   const auth = useAuth()
   const [showSplash, setShowSplash] = useState(() => !wasSplashAlreadySeen())
@@ -169,6 +180,7 @@ function App() {
 
   const handleOnboardingBotReply: OnboardingBotReply = async (userMessage: string) => {
     const sessionId = getOrCreateSessionId()
+    const userId = getOrCreateUserId()
     try {
       const response = await fetch(`${agentApiBase}/v1/webhook/incoming`, {
         method: 'POST',
@@ -176,7 +188,7 @@ function App() {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          user_id: 'demo-user',
+          user_id: userId,
           text: userMessage,
           platform: 'web',
           phone_number: '0000000000',
@@ -201,12 +213,13 @@ function App() {
 
   const handleOnboardingImageUpload: OnboardingImageUpload = async (base64: string, mimeType: string) => {
     const sessionId = getOrCreateSessionId()
+    const userId = getOrCreateUserId()
     try {
       const response = await fetch(`${agentApiBase}/v1/webhook/incoming`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          user_id: 'demo-user',
+          user_id: userId,
           text: 'Photo attached',
           image: base64,
           image_media_type: mimeType,
@@ -225,12 +238,13 @@ function App() {
 
   const handleOnboardingVoiceMessage: OnboardingVoiceMessage = async (audioBase64: string, mimeType: string) => {
     const sessionId = getOrCreateSessionId()
+    const userId = getOrCreateUserId()
     try {
       const response = await fetch(`${agentApiBase}/v1/webhook/incoming`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          user_id: 'demo-user',
+          user_id: userId,
           text: 'Voice message',
           platform: 'web',
           phone_number: '0000000000',
@@ -879,6 +893,52 @@ function cleanBotMessageDisplay(text: string): string {
   return collapseSpacesOnly
 }
 
+function renderMarkdown(text: string): JSX.Element[] {
+  // Simple markdown parser for bold (**text**) and bullet lists (- item)
+  const lines = text.split('\n')
+  const elements: JSX.Element[] = []
+  
+  lines.forEach((line, idx) => {
+    // Handle bold text: **text** -> <strong>text</strong>
+    const parts: (string | JSX.Element)[] = []
+    let remaining = line
+    let key = 0
+    
+    while (remaining.length > 0) {
+      const boldMatch = remaining.match(/\*\*([^*]+)\*\*/)
+      if (boldMatch && boldMatch.index !== undefined) {
+        // Add text before bold
+        if (boldMatch.index > 0) {
+          parts.push(remaining.substring(0, boldMatch.index))
+        }
+        // Add bold text
+        parts.push(<strong key={`bold-${idx}-${key++}`}>{boldMatch[1]}</strong>)
+        remaining = remaining.substring(boldMatch.index + boldMatch[0].length)
+      } else {
+        parts.push(remaining)
+        break
+      }
+    }
+    
+    // Handle bullet points
+    if (line.trim().startsWith('- ')) {
+      elements.push(
+        <div key={idx} style={{ marginLeft: '1em', marginTop: idx > 0 ? '0.3em' : 0 }}>
+          • {parts.map((p, i) => typeof p === 'string' ? p.replace(/^- /, '') : <span key={i}>{p}</span>)}
+        </div>
+      )
+    } else if (parts.length > 0) {
+      elements.push(
+        <div key={idx} style={{ marginTop: idx > 0 && line.trim() !== '' ? '0.5em' : 0 }}>
+          {parts.map((p, i) => typeof p === 'string' ? p : <span key={i}>{p}</span>)}
+        </div>
+      )
+    }
+  })
+  
+  return elements
+}
+
 function ChatOnboarding({ onContinue, onBotReply, onImageUpload, onVoiceMessage }: ChatOnboardingProps) {
   const liveClock = useLiveClock()
   const [step, setStep] = useState(1)
@@ -1350,7 +1410,11 @@ function ChatOnboarding({ onContinue, onBotReply, onImageUpload, onVoiceMessage 
                           {msg.from === 'bot' && idx === 0 && (
                             <div style={{ position: 'absolute', left: -6, top: 0, width: 0, height: 0, borderTop: '8px solid #fff', borderLeft: '6px solid transparent' }} />
                           )}
-                          <span style={{ display: 'block', whiteSpace: 'pre-wrap', color: '#111b21' }}>{msg.from === 'bot' ? cleanBotMessageDisplay(msg.text) : msg.text}</span>
+                          {msg.from === 'bot' ? (
+                            <div style={{ color: '#111b21' }}>{renderMarkdown(cleanBotMessageDisplay(msg.text))}</div>
+                          ) : (
+                            <span style={{ display: 'block', whiteSpace: 'pre-wrap', color: '#111b21' }}>{msg.text}</span>
+                          )}
                           {msg.from === 'bot' && msg.text.trim() && (
                             <button type="button" onClick={() => playingTtsIdx === idx ? stopTts() : playTts(cleanBotMessageDisplay(msg.text), idx)} title={playingTtsIdx === idx ? 'Stop' : 'Play'}
                               style={{ marginTop: 4, padding: 2, background: 'none', border: 'none', cursor: 'pointer', color: '#667781' }} aria-label={playingTtsIdx === idx ? 'Stop' : 'Play'}>
@@ -1361,7 +1425,7 @@ function ChatOnboarding({ onContinue, onBotReply, onImageUpload, onVoiceMessage 
                               )}
                             </button>
                           )}
-                          {msg.from === 'bot' && (msg.text.toLowerCase().includes('location') || msg.text.toLowerCase().includes('pincode')) && (
+                          {msg.from === 'bot' && (msg.text.toLowerCase().includes('location') || msg.text.toLowerCase().includes('pincode')) && !msg.text.toLowerCase().includes('user id:') && (
                             <button type="button"
                               onClick={() => setLiveMessages(prev => [...prev, { from: 'user', text: 'Rajwada, Indore, MP — Location shared!', time: nowTime() }])}
                               style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5, marginTop: 6, width: '100%', background: '#f0fdf4', border: '1px solid #86efac', borderRadius: 6, padding: '6px 8px', cursor: 'pointer', color: '#15803d' }}>
@@ -1369,7 +1433,7 @@ function ChatOnboarding({ onContinue, onBotReply, onImageUpload, onVoiceMessage 
                               <span style={{ fontSize: '0.7rem', fontWeight: 700 }}>Send location</span>
                             </button>
                           )}
-                          {msg.from === 'bot' && msg.text.toLowerCase().includes('aadhar') && (
+                          {msg.from === 'bot' && msg.text.toLowerCase().includes('aadhar') && !msg.text.toLowerCase().includes('user id:') && (
                             <button type="button" onClick={() => docInputRef.current?.click()}
                               style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5, marginTop: 6, width: '100%', background: '#faf5ff', border: '1px solid #d8b4fe', borderRadius: 6, padding: '6px 8px', cursor: 'pointer', color: '#7c3aed' }}>
                               <svg style={{ width: 12, height: 12, flexShrink: 0 }} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" /></svg>
