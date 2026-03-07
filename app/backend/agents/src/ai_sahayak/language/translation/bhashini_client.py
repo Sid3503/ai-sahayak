@@ -1,29 +1,12 @@
-import boto3
-import os
-from ai_sahayak.config.settings import settings
-
 class BhashiniClient:
-    """
-    Handles translation via Bhashini API, using AgentCore Identity for auth.
+    """Mock implementation for Bhashini translation API.
+    A real implementation would interact with Bhashini's REST API endpoint.
     """
     def __init__(self):
-        self.identity_client = boto3.client("bedrock-agent", region_name=settings.BEDROCK_REGION)
-        self.credential_name = "bhashini-oauth-provider"
-        
-    def _get_api_key(self) -> str:
-        """Fetch credentials from AgentCore Identity."""
-        try:
-            response = self.identity_client.get_agent_core_credential(
-                credentialProviderName=self.credential_name
-            )
-            return response["credentials"]["accessToken"]
-        except Exception:
-            return os.getenv("BHASHINI_API_KEY", "mock_fallback_key")
+        self.api_key = "mock_bhashini_key"
         
     async def translate(self, text: str, source_lang: str, target_lang: str) -> str:
-        """
-        Translates text using Bhashini.
-        """
-        api_key = self._get_api_key()
-        # Real HTTP call would go here using api_key
-        raise Exception(f"Bhashini Identity integrated (Key: {api_key[:4]}...). Mock fallback...")
+        """Mock translation"""
+        # We will purposefully raise an Exception to fallback to Bedrock LLM translation
+        # To test the Bedrock implementation.
+        raise Exception("Bhashini API not configured. Falling back to LLM translation.")

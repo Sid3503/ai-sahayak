@@ -1,0 +1,15 @@
+{
+  "state": "Assam & Northeast India",
+  "state_code": "AS_NE",
+  "cities": ["Guwahati", "Dibrugarh", "Jorhat", "Silchar", "Shillong", "Imphal", "Agartala"],
+  "description": "Regional festivals for Assam and Northeast India shopkeepers",
+  "events": [
+    { "id": "as-bihu-rongali-2026",       "name": "Rongali Bihu (Assam NY)",    "date": "2026-04-14", "type": "regional", "alert_days": [7,5,3,1], "stock_hint": "Pitha (rice cake ingredients), Coconut, Jaggery, Gamosa (towel), New clothes — biggest Assam festival" },
+    { "id": "as-bihu-bhogali-2026",       "name": "Bhogali Bihu (Harvest)",     "date": "2026-01-14", "type": "regional", "alert_days": [7,5,3,1], "stock_hint": "Pitha ingredients, Til, Coconut, Gur, Rice — harvest feast" },
+    { "id": "as-bihu-kongali-2026",       "name": "Kongali Bihu",               "date": "2026-10-18", "type": "regional", "alert_days": [3,1],    "stock_hint": "Diyas, Incense — austere harvest festival" },
+    { "id": "ne-christmas-2026",          "name": "Christmas (NE — Christian)", "date": "2026-12-25", "type": "regional", "alert_days": [7,5,3,1], "stock_hint": "Cakes, Plum cake, Chocolates, Decorations — Meghalaya/Nagaland large Christian" },
+    { "id": "ne-durga-puja-2026",         "name": "Durga Puja (Assam)",         "date": "2026-10-14", "type": "regional", "alert_days": [7,5,3,1], "stock_hint": "New clothes, Sweets, Puja items — Assam celebrates like Bengal" },
+    { "id": "ne-eid-2026",                "name": "Eid (Assam)",                "date": "2026-03-31", "type": "regional", "alert_days": [7,5,3,1], "stock_hint": "Sewai, Dates, Biryani spices — Assam has sizable Muslim community" },
+    { "id": "ne-school-reopen-2026",      "name": "School Reopening (NE)",      "date": "2026-04-01", "type": "local",    "alert_days": [14,7,3,1], "stock_hint": "Stationery, Snacks, Books" }
+  ]
+}

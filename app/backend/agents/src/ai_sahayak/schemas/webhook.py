@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 from typing import Optional, List, Any
 
 class InboundPayload(BaseModel):
@@ -6,6 +6,8 @@ class InboundPayload(BaseModel):
     text: Optional[str] = None
     image: Optional[str] = None  # Base64 encoded
     image_media_type: Optional[str] = None
+    audio: Optional[str] = None  # Base64 encoded voice message (for Transcribe)
+    audio_media_type: Optional[str] = None  # e.g. audio/webm
     session_id: Optional[str] = None
     platform: str = "web"
     phone_number: Optional[str] = None
@@ -32,57 +34,15 @@ class ErrorResponse(BaseModel):
     message: str
     user_id: Optional[str] = None
 
-# Meta WhatsApp Webhook Schemas
-class WhatsAppText(BaseModel):
-    body: str
 
-class WhatsAppInteractiveReply(BaseModel):
-    id: str
-    title: Optional[str] = None
-    description: Optional[str] = None
-
-class WhatsAppInteractive(BaseModel):
-    type: str
-    button_reply: Optional[WhatsAppInteractiveReply] = None
-    list_reply: Optional[WhatsAppInteractiveReply] = None
-
-class WhatsAppStatus(BaseModel):
-    id: str
-    status: str
-    recipient_id: str
-    timestamp: str
-    errors: Optional[List[dict]] = None
-
-class WhatsAppLocation(BaseModel):
-    latitude: float
-    longitude: float
-    address: Optional[str] = None
-    name: Optional[str] = None
-
-class WhatsAppMessage(BaseModel):
-    from_: str = Field(alias="from")
-    id: str
-    timestamp: str
-    type: str
-    text: Optional[WhatsAppText] = None
-    interactive: Optional[WhatsAppInteractive] = None
-    location: Optional[WhatsAppLocation] = None
-
-class WhatsAppValue(BaseModel):
-    messaging_product: str
-    metadata: dict
-    contacts: Optional[List[dict]] = None
-    messages: Optional[List[WhatsAppMessage]] = None
-    statuses: Optional[List[WhatsAppStatus]] = None
-
-class WhatsAppChange(BaseModel):
-    value: WhatsAppValue
-    field: str
-
-class WhatsAppEntry(BaseModel):
-    id: str
-    changes: List[WhatsAppChange]
-
-class WhatsAppWebhookPayload(BaseModel):
-    object: str
-    entry: List[WhatsAppEntry]
+# Lambda -> backend: when alerts_handler POSTs to BACKEND_WEBHOOK_URL
+class AlertIncomingPayload(BaseModel):
+    user_id: str
+    phone: Optional[str] = None
+    text: str
+    platform: str = "whatsapp"
+    is_alert: Optional[bool] = True
+    alert_type: Optional[str] = None
+    event_name: Optional[str] = None
+    days_until: Optional[int] = None
+    event_confidence_score: Optional[int] = None  # 0-100 from Lambda

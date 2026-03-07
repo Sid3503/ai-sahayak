@@ -17,6 +17,3 @@ langdetect>=1.0.9
 langchain-aws
 lingua-language-detector
 pytz
-langgraph-checkpoint-aws
-bedrock-agentcore
-aws-opentelemetry-distro>=0.4.0

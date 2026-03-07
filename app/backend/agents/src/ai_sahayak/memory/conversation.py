@@ -11,16 +11,26 @@ from ai_sahayak.config.settings import settings
 class DynamoDBConversationManager:
     def __init__(self):
         self.env = os.getenv("APP_ENV", "prod")
-        
-        # Always use settings-based DynamoDB to avoid local connection issues
-        # unless explicitly configured for a local mock.
-        self.dynamodb = boto3.resource(
-            "dynamodb",
-            region_name=settings.AWS_REGION,
-            aws_access_key_id=settings.AWS_ACCESS_KEY_ID,
-            aws_secret_access_key=settings.AWS_SECRET_ACCESS_KEY
-        )
-        self.table = self.dynamodb.Table("ai_sahayak_conversation_history")
+        self._dynamodb = None
+        self._table = None
+    
+    @property
+    def dynamodb(self):
+        if self._dynamodb is None:
+            self._dynamodb = boto3.resource(
+                "dynamodb",
+                region_name=settings.AWS_REGION,
+                aws_access_key_id=settings.AWS_ACCESS_KEY_ID,
+                aws_secret_access_key=settings.AWS_SECRET_ACCESS_KEY
+            )
+        return self._dynamodb
+    
+    @property
+    def table(self):
+        if self._table is None:
+            table_name = settings.CONVERSATIONS_TABLE
+            self._table = self.dynamodb.Table(table_name)
+        return self._table
 
     async def get_conversation_state(self, session_id: str) -> Dict[str, Any]:
         response = await asyncio.to_thread(

@@ -29,13 +29,13 @@ class ProactiveAlert(BaseModel):
 class WhatIfScenarioRequest(BaseModel):
     """Schema for a what-if simulation request."""
     store_id: str
-    target_metric: str # e.g., "revenue", "profit", "footfall"
-    scenario_description: str # e.g., "What if I drop Maggi price by 10%?"
-    
+    target_metric: str  # e.g., "revenue", "profit", "footfall"
+    scenario_description: str  # e.g., "What if I drop Maggi price by 10%?"
+
 class WhatIfScenarioResult(BaseModel):
     """Schema for a what-if simulation result."""
     scenario_id: str
-    predicted_impact: str # e.g., "Positive", "Negative", "Neutral"
-    estimated_metric_change: float # e.g., 5.0 (+5%)
+    predicted_impact: str  # e.g., "Positive", "Negative", "Neutral"
+    estimated_metric_change: float  # e.g., 5.0 (+5%)
     explanation_text: str
-    confidence_score: float # 0.0 to 1.0
+    confidence_score: float  # 0.0 to 1.0

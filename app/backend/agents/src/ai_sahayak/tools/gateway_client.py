@@ -2,6 +2,7 @@ import boto3
 import os
 from ai_sahayak.config.settings import settings
 
+
 class AgentCoreGatewayClient:
     """
     Client for interacting with Bedrock AgentCore Gateway.
@@ -9,7 +10,7 @@ class AgentCoreGatewayClient:
     """
     def __init__(self):
         self.client = boto3.client("bedrock-agent-runtime", region_name=settings.BEDROCK_REGION)
-        self.gateway_endpoint = os.getenv("AGENTCORE_GATEWAY_ENDPOINT")
+        self.gateway_endpoint = os.getenv("AGENTCORE_GATEWAY_ENDPOINT") or settings.AGENTCORE_GATEWAY_ENDPOINT or ""
 
     async def invoke_tool(self, tool_name: str, input_data: dict) -> dict:
         """
@@ -36,5 +37,6 @@ class AgentCoreGatewayClient:
         if "sales" in tool_name:
             return {"status": "success", "data": "Local sales data fallback"}
         return {"status": "error", "message": "Tool not found in fallback"}
+
 
 gateway_client = AgentCoreGatewayClient()

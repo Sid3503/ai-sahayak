@@ -1,0 +1,16 @@
+{
+  "state": "Punjab & Haryana",
+  "state_code": "PB_HR",
+  "cities": ["Amritsar", "Ludhiana", "Chandigarh", "Jalandhar", "Patiala", "Faridabad", "Gurgaon"],
+  "description": "Regional festivals for Punjab and Haryana shopkeepers",
+  "events": [
+    { "id": "pbhr-lohri-2026",            "name": "Lohri",                      "date": "2026-01-13", "type": "regional", "alert_days": [7,5,3,1], "stock_hint": "Rewri, Gajak, Peanuts, Popcorn, Sugarcane, Til — bonfire night" },
+    { "id": "pbhr-baisakhi-2026",         "name": "Baisakhi",                   "date": "2026-04-13", "type": "regional", "alert_days": [7,5,3,1], "stock_hint": "Mustard, Wheat, New clothes, Lassi ingredients, Dhol — harvest festival" },
+    { "id": "pbhr-teej-2026",             "name": "Teej (Haryana)",             "date": "2026-07-24", "type": "regional", "alert_days": [5,3,1],  "stock_hint": "Mehendi, Bangles, Ghee, Gujiya, Sweets" },
+    { "id": "pbhr-guru-nanak-2026",       "name": "Guru Nanak Jayanti",         "date": "2026-11-24", "type": "regional", "alert_days": [7,5,3,1], "stock_hint": "Langar items (Atta, Ghee, Dal, Sugar), Karah prasad ingredients" },
+    { "id": "pbhr-holi-2026",             "name": "Holi / Hola Mohalla",        "date": "2026-03-04", "type": "regional", "alert_days": [7,5,3,1], "stock_hint": "Gulal, Pichkari, Thandai, Bhang — Hola Mohalla next day in Anandpur Sahib" },
+    { "id": "pbhr-diwali-2026",           "name": "Diwali (Punjab)",            "date": "2026-11-08", "type": "regional", "alert_days": [14,7,5,3,1], "stock_hint": "Sweets (Pinni, Burfi), Dry fruits, Diyas, Fireworks, Patakhe" },
+    { "id": "pbhr-wedding-season-2026",   "name": "Wedding Season (PB/HR)",     "date": "2026-11-15", "type": "local",    "alert_days": [14,7,3,1], "stock_hint": "Dry fruits, Mithai tins, Gift boxes, Paneer, Ghee — massive wedding belt" },
+    { "id": "pbhr-school-reopen-2026",    "name": "School Reopening (PB/HR)",   "date": "2026-04-01", "type": "local",    "alert_days": [14,7,3,1], "stock_hint": "Stationery, Snacks, Tiffin items" }
+  ]
+}

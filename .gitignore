@@ -57,5 +57,10 @@ logs/
 # Temp and cached files
 tmp/
 temp/
-docs/
 .cache
+
+# Dashboard — large data, venv, archives (do not commit to git)
+.venv311/
+app/Dashboard/.venv311/
+app/Dashboard/*.csv
+app/Dashboard/*.zip

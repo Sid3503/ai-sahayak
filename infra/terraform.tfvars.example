@@ -1,0 +1,9 @@
+# Copy to terraform.tfvars and set your backend URL.
+# Backend should accept: POST with JSON body { "event_id", "name", "type", "date", "days_until_event", "regions" }
+
+backend_webhook_url = "https://your-api.example.com/v1/webhook/calendar"
+aws_region         = "ap-south-1"
+project_name      = "ai-sahayak"
+
+# Optional: different schedule (default 6 AM IST)
+# calendar_schedule_cron = "cron(30 0 * * ? *)"

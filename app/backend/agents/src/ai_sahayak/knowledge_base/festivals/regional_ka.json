@@ -1,0 +1,16 @@
+{
+  "state": "Karnataka",
+  "state_code": "KA",
+  "cities": ["Bengaluru", "Mysuru", "Hubli", "Dharwad", "Belagavi", "Mangaluru", "Kalaburagi"],
+  "description": "Regional festivals for Karnataka shopkeepers",
+  "events": [
+    { "id": "ka-ugadi-2026",              "name": "Ugadi (Kannada New Year)",   "date": "2026-03-19", "type": "regional", "alert_days": [7,5,3,1], "stock_hint": "Bevu-bella (neem+jaggery), Raw mango, New clothes — Kannada New Year" },
+    { "id": "ka-mysuru-dasara-2026",      "name": "Mysuru Dasara",              "date": "2026-10-18", "type": "regional", "alert_days": [14,7,5,3,1], "stock_hint": "New clothes, Sweets, Flowers, FMCG — world-famous, 10-day festival" },
+    { "id": "ka-ganesh-chaturthi-2026",   "name": "Ganesh Chaturthi (KA)",      "date": "2026-09-10", "type": "regional", "alert_days": [7,5,3,1], "stock_hint": "Modak, Coconut, Flowers, Incense — big in Bengaluru" },
+    { "id": "ka-rajyotsava-2026",         "name": "Karnataka Rajyotsava",       "date": "2026-11-01", "type": "regional", "alert_days": [3,1],     "stock_hint": "Red-yellow flags, Sweets, Cold drinks" },
+    { "id": "ka-diwali-2026",             "name": "Deepavali (KA)",             "date": "2026-11-08", "type": "regional", "alert_days": [14,7,5,3,1], "stock_hint": "Sweets, Obbattu (Puran Poli), Diyas, New clothes, Dry fruits" },
+    { "id": "ka-makara-sankranti-2026",   "name": "Makara Sankranti (KA)",      "date": "2026-01-14", "type": "regional", "alert_days": [7,5,3,1], "stock_hint": "Ellu-bella (Sesame mix), Sugarcane, Kite supplies" },
+    { "id": "ka-school-reopen-2026",      "name": "School Reopening (KA)",      "date": "2026-06-01", "type": "local",    "alert_days": [14,7,3,1], "stock_hint": "Stationery, Snacks, Tiffin items, Books" },
+    { "id": "ka-wedding-season-2026",     "name": "Wedding Season (KA)",        "date": "2026-04-20", "type": "local",    "alert_days": [14,7,3,1], "stock_hint": "Dry fruits, Mithai, Coconut, Flowers, Gift boxes" }
+  ]
+}

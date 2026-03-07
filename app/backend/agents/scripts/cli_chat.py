@@ -1,15 +1,15 @@
 import requests
 import json
+import uuid
 import sys
 import os
 import uuid
-import random
 
 # Base Configuration
 API_URL = "http://localhost:8000/v1/webhook/incoming"
 PLATFORM = "cli"
 
-USER_ID = sys.argv[2] if len(sys.argv) > 2 else f"9198{random.randint(10000000, 99999999)}"
+USER_ID = "cli_tester_001"
 SESSION_ID = sys.argv[1] if len(sys.argv) > 1 else f"cli_session_{uuid.uuid4().hex[:8]}"
 
 def print_header():
@@ -25,7 +25,6 @@ def print_header():
 def send_message(text: str):
     payload = {
         "user_id": USER_ID,
-        "phone_number": USER_ID,
         "text": text,
         "session_id": SESSION_ID,
         "platform": PLATFORM

@@ -1,0 +1,19 @@
+{
+  "state": "Uttar Pradesh & Uttarakhand",
+  "state_code": "UP_UK",
+  "cities": ["Lucknow", "Kanpur", "Varanasi", "Agra", "Allahabad", "Dehradun", "Haridwar", "Mathura", "Vrindavan"],
+  "description": "Regional festivals for Uttar Pradesh and Uttarakhand shopkeepers",
+  "events": [
+    { "id": "up-kumbh-mela-2026",         "name": "Kumbh Mela (Prayagraj)",     "date": "2026-01-13", "type": "local",    "alert_days": [14,7,3,1], "stock_hint": "Pooja items, Flowers, Dry fruits, Pilgrimage supplies — crores of pilgrims", "cities": ["Allahabad"] },
+    { "id": "up-maghi-purnima-2026",      "name": "Maghi Purnima (Kumbh)",      "date": "2026-02-12", "type": "local",    "alert_days": [5,3,1],  "stock_hint": "Pooja items, Flowers, Camphor, Fruits", "cities": ["Allahabad", "Haridwar"] },
+    { "id": "up-holi-mathura-2026",       "name": "Holi (Mathura/Vrindavan)",   "date": "2026-03-04", "type": "regional", "alert_days": [7,5,3,1], "stock_hint": "Gulal, Phoolon wali Holi items, Pichkari, Thandai — world-famous Holi", "cities": ["Mathura", "Vrindavan"] },
+    { "id": "up-ram-navami-ayodhya-2026", "name": "Ram Navami (Ayodhya)",       "date": "2026-03-28", "type": "regional", "alert_days": [7,5,3,1], "stock_hint": "Prasad, Panchamrit, Flowers, Sweets — Ayodhya Ram Mandir draws crores" },
+    { "id": "up-akshaya-tritiya-2026",    "name": "Akshaya Tritiya (UP)",       "date": "2026-04-21", "type": "regional", "alert_days": [7,5,3,1], "stock_hint": "Gold, Sweets, Dry fruits, Gift boxes" },
+    { "id": "up-eid-lucknow-2026",        "name": "Eid (Lucknow/UP)",           "date": "2026-03-31", "type": "regional", "alert_days": [7,5,3,1], "stock_hint": "Sewai, Dates, Biryani masala, Ittar, Sherwanis — UP large Muslim community" },
+    { "id": "up-janmashtami-2026",        "name": "Janmashtami (Mathura)",      "date": "2026-09-05", "type": "regional", "alert_days": [7,5,3,1], "stock_hint": "Makhan, Mishri, Dahi, Sweets, Panjiri — massive demand in Mathura/Vrindavan" },
+    { "id": "up-chhath-puja-2026",        "name": "Chhath Puja (UP/Bihar belt)","date": "2026-11-12", "type": "regional", "alert_days": [7,5,3,1], "stock_hint": "Thekua, Gur, Sugarcane, Fruits, Bamboo soop — Eastern UP huge" },
+    { "id": "up-diwali-2026",             "name": "Diwali (UP)",                "date": "2026-11-08", "type": "regional", "alert_days": [14,7,5,3,1], "stock_hint": "Mithai (Gujiya, Peda, Rewri), Diyas, Fireworks, Namkeen, Dry fruits" },
+    { "id": "up-school-reopen-2026",      "name": "School Reopening (UP/UK)",   "date": "2026-07-01", "type": "local",    "alert_days": [14,7,3,1], "stock_hint": "Stationery, Snacks, Books, Uniform items" },
+    { "id": "uk-char-dham-season-2026",   "name": "Char Dham Yatra Season",     "date": "2026-05-01", "type": "local",    "alert_days": [14,7,1],  "stock_hint": "Pilgrim supplies, Dry fruits, Warm clothes, Trekking snacks", "cities": ["Dehradun", "Haridwar"] }
+  ]
+}

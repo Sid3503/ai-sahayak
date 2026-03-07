@@ -1,0 +1,14 @@
+{
+  "state": "Himachal Pradesh & J&K",
+  "state_code": "HP_JK",
+  "cities": ["Shimla", "Manali", "Dharamsala", "Srinagar", "Jammu", "Leh"],
+  "description": "Regional festivals for HP, J&K, and Ladakh shopkeepers",
+  "events": [
+    { "id": "hp-kullu-dussehra-2026",     "name": "Kullu Dussehra",             "date": "2026-10-18", "type": "local",    "alert_days": [14,7,3,1], "stock_hint": "Snacks, FMCG, Tourist supplies — world-famous, 7-day fair", "cities": ["Manali", "Kullu"] },
+    { "id": "hp-lohri-2026",              "name": "Lohri (HP)",                 "date": "2026-01-13", "type": "regional", "alert_days": [5,3,1],  "stock_hint": "Rewri, Gajak, Peanuts, Popcorn, Til" },
+    { "id": "jk-eid-2026",                "name": "Eid (J&K — Kashmir)",        "date": "2026-03-31", "type": "regional", "alert_days": [7,5,3,1], "stock_hint": "Wazwan ingredients, Kashmiri Saffron, Dry fruits, Sheer chai — Kashmir large Muslim" },
+    { "id": "hp-tourist-peak-summer-2026","name": "Tourist Peak Season (HP)",   "date": "2026-05-01", "type": "local",    "alert_days": [14,7,1],  "stock_hint": "Maggi, Snacks, Water bottles, Packaged foods — crores of tourists May-July" },
+    { "id": "jk-tourist-peak-2026",       "name": "Shikara/Dal Lake Season",    "date": "2026-04-01", "type": "local",    "alert_days": [14,7,1],  "stock_hint": "Dry fruits (Kashmiri walnuts, almonds), Kangri, Pheran — tourist rush", "cities": ["Srinagar"] },
+    { "id": "hp-diwali-2026",             "name": "Diwali (HP)",                "date": "2026-11-08", "type": "regional", "alert_days": [7,5,3,1], "stock_hint": "Sweets, Diyas, Fireworks, Dry fruits" }
+  ]
+}

@@ -14,6 +14,3 @@ class ConversationState(TypedDict):
     current_step: str  # E.g., 'wait_for_hi', 'onboarding', 'completed'
     onboarding_data: dict  # To store Name, Store, Location fields
     next_intent: str
-    image_path: str
-    vision_analysis: dict
-    memory_context: str

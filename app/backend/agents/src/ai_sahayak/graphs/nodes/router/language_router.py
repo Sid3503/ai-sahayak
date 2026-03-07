@@ -11,31 +11,58 @@ class LanguageRouterNode:
         
     async def process_and_translate(self, state: ConversationState) -> dict:
         """Detect language and prepare translated content"""
+        user_context = state.get("user_context", {}) or {}
+        onboarding_data = state.get("onboarding_data", {}) or {}
+        current_step = state.get("current_step", "")
+
+        # If user already chose a language during onboarding, never override it (same flow as English, just different reply language)
+        preferred = (onboarding_data.get("preferred_language") or "").strip().lower()
+        if preferred and current_step in ("onboarding", "", "wait_for_hi"):
+            lang_code = "en" if preferred == "english" else "hi" if preferred in ("hindi", "hinglish") else "mr" if preferred == "marathi" else "en"
+            return {
+                "user_context": {
+                    **user_context,
+                    "target_language": lang_code,
+                    "requires_translation": (lang_code != "en"),
+                }
+            }
+
+        # If the user's message is exactly a language choice (e.g. "Hindi", "Hinglish"), set target_language and do NOT translate the message
+        last_content = ""
+        if state.get("messages"):
+            last_msg = state["messages"][-1]
+            if isinstance(last_msg, HumanMessage) and getattr(last_msg, "content", None):
+                last_content = str(last_msg.content).strip().lower()
+        if last_content in ("english", "hindi", "hinglish", "marathi"):
+            lang_code = "en" if last_content == "english" else "hi" if last_content in ("hindi", "hinglish") else "mr"
+            return {
+                "user_context": {
+                    **user_context,
+                    "target_language": lang_code,
+                    "requires_translation": (lang_code != "en"),
+                }
+            }
+
         # If there are no messages, default to english
         if not state["messages"]:
-            return {"user_context": {**state.get("user_context", {}), "target_language": "en"}}
+            return {"user_context": {**user_context, "target_language": "en"}}
             
         last_message = state["messages"][-1]
         
         # Only process if it is a human message
         if not isinstance(last_message, HumanMessage):
-             return {"user_context": {**state.get("user_context", {}), "target_language": "en"}}
+             return {"user_context": {**user_context, "target_language": user_context.get("target_language", "en")}}
              
         if not last_message.content:
-            return {"user_context": {**state.get("user_context", {}), "target_language": "en"}}
+            return {"user_context": {**user_context, "target_language": user_context.get("target_language", "en")}}
             
         detected_lang = self.detector.detect(last_message.content)
-        user_context = state.get("user_context", {})
         prev_lang = user_context.get("target_language", "en")
+        # During onboarding, preserve user's chosen language for short replies (e.g. name, store name)
+        if current_step == "onboarding" and prev_lang and len(str(last_message.content).split()) < 6:
+            if detected_lang != prev_lang:
+                detected_lang = prev_lang
         
-        # If the user previously selected a non-English language and just typed a short word or filename (which detects as EN)
-        # we should preserve their original language preference instead of snapping back to English forever.
-        if detected_lang == "en" and prev_lang != "en" and len(last_message.content.split()) < 5:
-            # Assume it's a short reply in the established language context
-            target_lang = prev_lang
-        else:
-            target_lang = detected_lang
-            
         if detected_lang != "en":
             # Translate input to English for processing
             translated_input = await self.translator.translate_to_english(
@@ -52,7 +79,7 @@ class LanguageRouterNode:
                 "messages": modified_message_list,
                 "user_context": {
                     **user_context,
-                    "target_language": target_lang,
+                    "target_language": detected_lang,
                     "requires_translation": True,
                     "original_content": last_message.content
                 }
@@ -61,8 +88,8 @@ class LanguageRouterNode:
         return {
             "user_context": {
                 **user_context,
-                "target_language": target_lang,
-                "requires_translation": (target_lang != "en")
+                "target_language": detected_lang,
+                "requires_translation": False
             }
         }
 

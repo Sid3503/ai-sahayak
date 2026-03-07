@@ -1,18 +1,18 @@
+# Load .env into os.environ so boto3/Bedrock see AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY
+import os
+from pathlib import Path
+def _load_env():
+    from dotenv import load_dotenv
+    # Try agents dir (when running as python src/ai_sahayak/main.py from agents/)
+    agents_dir = Path(__file__).resolve().parents[2]
+    load_dotenv(agents_dir / ".env")
+    load_dotenv(Path.cwd() / ".env")  # Then cwd
+_load_env()
+
 import uvicorn
-# from opentelemetry import trace
-# from opentelemetry.sdk.trace import TracerProvider
-# from opentelemetry.sdk.trace.export import BatchSpanProcessor, ConsoleSpanExporter
 from ai_sahayak.api.server import create_app
 
-# Wire AgentCore Observability via OpenTelemetry
-# Fallback to ConsoleSpanExporter for local debugging since vendor-specific exporter was not found
-# provider = TracerProvider()
-# provider.add_span_processor(
-#     BatchSpanProcessor(ConsoleSpanExporter())
-# )
-# trace.set_tracer_provider(provider)
-
-fastapi_app = create_app()
+app = create_app()
 
 if __name__ == "__main__":
-    uvicorn.run(fastapi_app, host="0.0.0.0", port=8000)
+    uvicorn.run("ai_sahayak.main:app", host="0.0.0.0", port=8000, reload=True)
