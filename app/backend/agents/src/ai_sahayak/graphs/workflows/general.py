@@ -21,17 +21,15 @@ async def general_chat_node(state: ConversationState):
     # Get user's preferred language from onboarding
     preferred_lang = onboarding_data.get("preferred_language", "English").lower()
     
-    # Language instruction for LLM
+    # Language instruction for LLM (English / Hindi / Hinglish only)
     if preferred_lang in ["english", "en"]:
         lang_instruction = "Reply in English."
     elif preferred_lang in ["hindi", "hi"]:
-        lang_instruction = "Reply in Hindi (Devanagari script)."
+        lang_instruction = "Reply in Hindi only, using Devanagari script (e.g. नमस्ते, धन्यवाद)."
     elif preferred_lang in ["hinglish"]:
-        lang_instruction = "Reply in Hinglish (Hindi words in Roman script)."
-    elif preferred_lang in ["marathi", "mr"]:
-        lang_instruction = "Reply in Marathi."
+        lang_instruction = "Reply in Hinglish only: mix Hindi and English in Roman script (e.g. Aapka store ka naam kya hai? Sales theek hain.)."
     else:
-        lang_instruction = "Reply in the user's preferred language."
+        lang_instruction = "Reply in English."
 
     system_prompt = """You are AI Sahayak, an assistant for Indian Kirana store owners.
 Use the context below to answer. {lang_instruction} Be brief and practical.

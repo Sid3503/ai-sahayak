@@ -54,19 +54,19 @@ async def onboarding_node(state: ConversationState):
         if any(x in last_content for x in ("document attached", "photo attached", "[image uploaded", "📄 document")):
             onboarding_data["aadhar"] = "uploaded"
 
-    # Persist preferred language when user clearly chose one (same flow for English/Hindi/Hinglish/Marathi)
+    # Persist preferred language when user clearly chose one (English / Hindi / Hinglish only; Marathi removed)
+    last_user_content = ""
     if messages_list:
         last_msg = messages_list[-1]
         if getattr(last_msg, "content", None):
             raw = str(last_msg.content).strip().lower()
-            if raw in ("english", "hindi", "hinglish", "marathi"):
+            last_user_content = raw
+            if raw in ("english", "hindi", "hinglish"):
                 onboarding_data["preferred_language"] = raw.title()
             elif raw.startswith("[hi]") or raw.startswith("[hin]"):
                 onboarding_data["preferred_language"] = "Hindi"
             elif raw.startswith("[en]"):
                 onboarding_data["preferred_language"] = "English"
-            elif raw.startswith("[mr]"):
-                onboarding_data["preferred_language"] = "Marathi"
 
     # When user just sent a 6-digit pincode, set pincode + location before LLM so it doesn't re-ask for location
     if messages_list and getattr(messages_list[-1], "content", None):
@@ -83,7 +83,7 @@ async def onboarding_node(state: ConversationState):
         last_msg = messages_list[-1]
         if isinstance(last_msg, HumanMessage):
             user_reply = (getattr(last_msg, "content", "") or "").strip()
-            if user_reply and len(user_reply) < 200 and user_reply.lower() not in ("english", "hindi", "hinglish", "marathi"):
+            if user_reply and len(user_reply) < 200 and user_reply.lower() not in ("english", "hindi", "hinglish"):
                 if not (user_reply.isdigit() and len(user_reply) == 6):
                     onboarding_data["store_name"] = user_reply
 
@@ -176,11 +176,13 @@ async def onboarding_node(state: ConversationState):
     except Exception as e:
         # Fallback to raw response if JSON parsing fails
         # This is expected when LLM returns plain text (e.g., asking for Aadhar/GST)
-        reply_text = response.content
+        reply_text = (response.content or "").strip()
+        if not reply_text:
+            reply_text = "Please share that again; I didn't catch it."
         # Only log if it's not a simple acknowledgment or question
-        if not any(keyword in response.content.lower() for keyword in ['aadhar', 'gst', 'verification', 'upload', 'provide']):
+        if not any(keyword in (response.content or "").lower() for keyword in ['aadhar', 'gst', 'verification', 'upload', 'provide']):
             print(f"Failed to parse onboarding JSON: {e}")
-            print(f"Raw LLM response: {response.content[:500]}")
+            print(f"Raw LLM response: {(response.content or '')[:500]}")
 
     # When user said "no" to GST but LLM didn't put it in data (e.g. parse failed or empty data), set it so we can complete
     if not is_valid_value(onboarding_data.get("gst_number")) and is_valid_value(onboarding_data.get("aadhar")):
@@ -193,6 +195,11 @@ async def onboarding_node(state: ConversationState):
     # If user gave pincode but not location (e.g. only typed 400042), use pincode as location so we can complete and show credentials
     if not is_valid_value(onboarding_data.get("location")) and is_valid_value(onboarding_data.get("pincode")):
         onboarding_data["location"] = str(onboarding_data.get("pincode", ""))
+
+    # Never re-ask the language question: if user just chose language, reply with "Great, we'll continue in X" and ask for name
+    if last_user_content in ("english", "hindi", "hinglish") and is_valid_value(onboarding_data.get("preferred_language")) and not is_valid_value(onboarding_data.get("name")):
+        lang = onboarding_data.get("preferred_language", "English").strip()
+        reply_text = f"Great, we'll continue in {lang}.\n\nWhat is your full name?"
         
     # Deterministic completion check (ignore LLM's flag to avoid premature completion)
     required_keys = ["name", "store_name", "store_type", "pincode", "location", "years_in_business", "aadhar", "gst_number"]
@@ -226,20 +233,34 @@ async def onboarding_node(state: ConversationState):
         pwd = f"{first_name_for_pwd}{last4}!"
         phone_num = payload_phone if payload_phone and payload_phone != "0000000000" else user_id_cred
 
-        final_message = (
-            "You're all set! Use these to sign in to the Dashboard:\n\n"
-            f"User ID: {user_id_cred}\n"
-            f"Password: {pwd}\n\n"
-            "(Save them for later.)"
-        )
+        # Credentials must always be in Latin (User ID / Password) so user can sign in; intro can be in Hindi.
+        preferred_lang = (onboarding_data.get("preferred_language") or "English").strip().lower()
+        if preferred_lang == "hindi":
+            final_message = (
+                "आप सब तैयार हैं! डैशबोर्ड पर साइन इन करने के लिए नीचे दिए गए आईडी और पासवर्ड का उपयोग करें:\n\n"
+                f"User ID: {user_id_cred}\n"
+                f"Password: {pwd}\n\n"
+                "(बाद के लिए इन्हें सहेजें।)"
+            )
+        else:
+            final_message = (
+                "You're all set! Use these to sign in to the Dashboard:\n\n"
+                f"User ID: {user_id_cred}\n"
+                f"Password: {pwd}\n\n"
+                "(Save them for later.)"
+            )
         
         # Create/update Cognito user so they can sign in on the Dashboard with this User ID and Password (name = greeting on Dashboard)
         try:
             from ai_sahayak.tools.auth.cognito_user import ensure_cognito_user
             import asyncio
-            await asyncio.to_thread(ensure_cognito_user, user_id_cred, pwd, name=user_name)
+            ok = await asyncio.to_thread(ensure_cognito_user, user_id_cred, pwd, name=user_name)
+            if not ok:
+                print(f"[Onboarding] Cognito: user '{user_id_cred}' was NOT created. Set COGNITO_USER_POOL_ID in .env and ensure IAM has cognito-idp:AdminCreateUser and AdminSetUserPassword.")
+            else:
+                print(f"[Onboarding] Cognito: user '{user_id_cred}' ready for Dashboard sign-in.")
         except Exception as e:
-            print(f"Cognito user create/set-password failed: {e}")
+            print(f"[Onboarding] Cognito user create/set-password failed for '{user_id_cred}': {e}")
         
         # Finalize and persist user credentials and store (with resolved location) to the database
         try:
@@ -282,8 +303,10 @@ async def onboarding_node(state: ConversationState):
         else:
             reply_text = "What type of store do you run? (e.g., Kirana, General Store, Medical)"
 
+    # Ensure we never return empty reply (robustness)
+    out_reply = (reply_text or "").strip() or "Please try again."
     return {
-        "messages": [AIMessage(content=reply_text)],
+        "messages": [AIMessage(content=out_reply)],
         "current_step": new_step,
         "onboarding_data": onboarding_data
     }

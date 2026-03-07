@@ -1,5 +1,6 @@
 """
 Text-to-Speech (TTS) for AI replies – Amazon Polly (Hindi / Indian English).
+Model-agnostic: does not use Bedrock (Nova/Qwen); works the same with any chat model.
 """
 import base64
 import logging

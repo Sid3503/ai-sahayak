@@ -23,10 +23,11 @@ class TranslationPipeline:
             return await self._llm_translate(text, "en", target_lang)
             
     async def _llm_translate(self, text: str, source: str, target: str) -> str:
-        prompt = f"""Translate this text from {source} to {target}:
-        {text}
-        
-        Only respond with the translated text."""
-        
+        target_desc = "Hindi (Devanagari script only, e.g. नमस्ते)" if target == "hi" else target
+        prompt = f"""Translate the following text from English to {target_desc}. Output only the translation, nothing else.
+
+Text:
+{text}"""
         response = await self.llm.ainvoke([SystemMessage(content=prompt)])
-        return response.content
+        out = (response.content or "").strip()
+        return out if out else text

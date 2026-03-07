@@ -72,8 +72,8 @@ async def webhook_incoming(payload: InboundPayload):
             # Use user's chosen language so transcript matches (English → Latin script, Hindi → Devanagari)
             prior = await get_conversation_state(session_id)
             preferred = (prior.get("onboarding_data") or {}).get("preferred_language") or ""
-            if preferred and preferred.lower() in ("hindi", "marathi", "hinglish"):
-                language_code = "mr-IN" if preferred.lower() == "marathi" else "hi-IN"
+            if preferred and preferred.lower() in ("hindi", "hinglish"):
+                language_code = "hi-IN"
             else:
                 language_code = "en-IN"
             print(f"[Chat] Voice message received, transcribing (lang={language_code}, preferred={preferred or 'none'})...")
@@ -173,38 +173,37 @@ async def webhook_incoming(payload: InboundPayload):
             import traceback
             print(f"Graph invocation error: {graph_error}")
             print(traceback.format_exc())
-            # Fallback result to allow replying even on failure
+            # Fallback so user always gets a reply (onboarding or post-onboarding)
+            fallback_msg = (
+                "Sorry, something went wrong on my side. Please try again in a moment, or rephrase your message."
+            )
             result = {
                 **inputs,
-                "messages": [AIMessage(content="I encountered an issue processing your request. How can I help you differently?")]
+                "messages": [AIMessage(content=fallback_msg)],
             }
-        
         ai_messages = [m for m in result.get("messages", []) if isinstance(m, AIMessage)]
-        reply_text = ai_messages[-1].content if ai_messages else "No response generated."
+        reply_text = (ai_messages[-1].content if ai_messages else "").strip() or "I didn't catch that. Could you repeat?"
 
-        # Translate reply to user's chosen language when they selected Hindi, Hinglish, or Marathi
+        # Translate reply only when user chose Hindi (Devanagari). Hinglish: LLM replies in Hinglish via prompt; no translation.
+        # Never translate the credentials message — User ID and Password must stay in Latin so user can sign in.
         user_context = result.get("user_context", {})
         onboarding_data = result.get("onboarding_data", {}) or {}
         preferred = (onboarding_data.get("preferred_language") or "").strip().lower()
         target_lang = user_context.get("target_language", "en")
-        if user_context.get("requires_translation") or preferred in ("hindi", "hinglish", "marathi"):
-            if preferred in ("hindi", "hinglish"):
-                target_lang = "hi"
-            elif preferred == "marathi":
-                target_lang = "mr"
-            if target_lang and target_lang != "en":
-                # Skip translation if reply is already in Devanagari (LLM replied in Hindi/Marathi)
-                devanagari_chars = sum(1 for c in reply_text if "\u0900" <= c <= "\u097f")
-                if devanagari_chars < len(reply_text) * 0.3:
-                    try:
-                        from ai_sahayak.language.translation.pipeline import TranslationPipeline
-                        translator = TranslationPipeline()
-                        reply_text = await translator.translate_from_english(
-                            reply_text,
-                            target_lang,
-                        )
-                    except Exception as tr_err:
-                        print(f"[Chat] Translation to {target_lang} failed: {tr_err}")
+        is_credentials_message = "User ID:" in reply_text and "Password:" in reply_text
+        if preferred == "hindi" and target_lang != "en" and not is_credentials_message:
+            devanagari_chars = sum(1 for c in reply_text if "\u0900" <= c <= "\u097f")
+            if devanagari_chars < len(reply_text) * 0.3:
+                original_reply = reply_text
+                try:
+                    from ai_sahayak.language.translation.pipeline import TranslationPipeline
+                    translator = TranslationPipeline()
+                    reply_text = await translator.translate_from_english(reply_text, "hi")
+                    if not (reply_text and reply_text.strip()):
+                        reply_text = original_reply
+                except Exception as tr_err:
+                    print(f"[Chat] Translation to Hindi failed: {tr_err}")
+                    reply_text = original_reply
         
         # After onboarding credentials message, don't show Pricing/Inventory/Sales — only the ID/pass and "Open Dashboard" flow
         suggested = generate_suggested_actions(result)

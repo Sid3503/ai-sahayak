@@ -18,7 +18,7 @@ class LanguageRouterNode:
         # If user already chose a language during onboarding, never override it (same flow as English, just different reply language)
         preferred = (onboarding_data.get("preferred_language") or "").strip().lower()
         if preferred and current_step in ("onboarding", "", "wait_for_hi"):
-            lang_code = "en" if preferred == "english" else "hi" if preferred in ("hindi", "hinglish") else "mr" if preferred == "marathi" else "en"
+            lang_code = "en" if preferred == "english" else "hi" if preferred in ("hindi", "hinglish") else "en"
             return {
                 "user_context": {
                     **user_context,
@@ -33,8 +33,8 @@ class LanguageRouterNode:
             last_msg = state["messages"][-1]
             if isinstance(last_msg, HumanMessage) and getattr(last_msg, "content", None):
                 last_content = str(last_msg.content).strip().lower()
-        if last_content in ("english", "hindi", "hinglish", "marathi"):
-            lang_code = "en" if last_content == "english" else "hi" if last_content in ("hindi", "hinglish") else "mr"
+        if last_content in ("english", "hindi", "hinglish"):
+            lang_code = "en" if last_content == "english" else "hi" if last_content in ("hindi", "hinglish") else "en"
             return {
                 "user_context": {
                     **user_context,

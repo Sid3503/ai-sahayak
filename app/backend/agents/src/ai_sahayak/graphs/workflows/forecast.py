@@ -27,11 +27,11 @@ async def forecast_query_node(state: ConversationState):
     if preferred_lang in ["english", "en"]:
         lang_instruction = "Reply in English."
     elif preferred_lang in ["hindi", "hi"]:
-        lang_instruction = "Reply in Hindi (Devanagari script)."
+        lang_instruction = "Reply in Hindi only, using Devanagari script."
     elif preferred_lang in ["hinglish"]:
-        lang_instruction = "Reply in Hinglish (Hindi words in Roman script)."
+        lang_instruction = "Reply in Hinglish only: Hindi + English in Roman script."
     else:
-        lang_instruction = "Reply in the user's preferred language."
+        lang_instruction = "Reply in English."
 
     system_prompt = """You are AI Sahayak, helping an Indian Kirana store owner with demand forecasting and seasonal/festival trends.
 {lang_instruction} Keep it concise and actionable.

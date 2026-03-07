@@ -256,12 +256,14 @@ function App() {
 
   const handleOnboardingBotReply: OnboardingBotReply = async (userMessage: string) => {
     const sessionId = getOrCreateSessionId()
+    const timeoutMs = 60000 // 60s so Nova has time to respond
     try {
+      const controller = new AbortController()
+      const timeoutId = setTimeout(() => controller.abort(), timeoutMs)
       const response = await fetch(`${agentApiBase}/v1/webhook/incoming`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
+        signal: controller.signal,
         body: JSON.stringify({
           user_id: 'demo-user',
           text: userMessage,
@@ -270,28 +272,35 @@ function App() {
           session_id: sessionId,
         }),
       })
-
+      clearTimeout(timeoutId)
       if (!response.ok) {
         console.error('Agent API error status', response.status)
         return { reply: 'Bot is unavailable right now. Please try again.', suggestedActions: [] }
       }
-
       const data = await response.json()
       const reply = data.reply || data.message || 'No reply from bot.'
       const suggestedActions = Array.isArray(data.suggested_actions) ? data.suggested_actions : []
       return { reply, suggestedActions }
     } catch (error) {
+      const isAbort = (error as Error)?.name === 'AbortError'
       console.error('Error calling agent API', error)
-      return { reply: 'Unable to reach the bot. Please check the server.', suggestedActions: [] }
+      return {
+        reply: isAbort ? 'Request timed out. Please try again.' : 'Unable to reach the bot. Please check the server.',
+        suggestedActions: [],
+      }
     }
   }
 
   const handleOnboardingImageUpload: OnboardingImageUpload = async (base64: string, mimeType: string) => {
     const sessionId = getOrCreateSessionId()
+    const timeoutMs = 90000 // 90s for vision + Nova
     try {
+      const controller = new AbortController()
+      const timeoutId = setTimeout(() => controller.abort(), timeoutMs)
       const response = await fetch(`${agentApiBase}/v1/webhook/incoming`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        signal: controller.signal,
         body: JSON.stringify({
           user_id: 'demo-user',
           text: 'Photo attached',
@@ -302,11 +311,13 @@ function App() {
           session_id: sessionId,
         }),
       })
+      clearTimeout(timeoutId)
       if (!response.ok) return 'Photo received. You can send more or type a message.'
       const data = await response.json()
       return data.reply || data.message || 'Photo received.'
-    } catch {
-      return 'Could not upload photo. Please try again.'
+    } catch (e) {
+      const isAbort = (e as Error)?.name === 'AbortError'
+      return isAbort ? 'Upload timed out. Please try again.' : 'Could not upload photo. Please try again.'
     }
   }
 
@@ -1126,6 +1137,11 @@ function cleanBotMessageDisplay(text: string): string {
   return collapseSpacesOnly
 }
 
+/** Normalize for duplicate check: trim and collapse all whitespace to single space. */
+function normalizeMessageText(text: string): string {
+  return (text || '').replace(/\s+/g, ' ').trim()
+}
+
 function ChatOnboarding({ demoUsers = [], onContinue, onBotReply, onImageUpload, onVoiceMessage }: ChatOnboardingProps) {
   const liveClock = useLiveClock()
   const [step, setStep] = useState(1)
@@ -1155,6 +1171,7 @@ function ChatOnboarding({ demoUsers = [], onContinue, onBotReply, onImageUpload,
   const mediaRecorderRef = useRef<MediaRecorder | null>(null)
   const audioChunksRef = useRef<Blob[]>([])
   const [playingTtsIdx, setPlayingTtsIdx] = useState<number | null>(null)
+  const [ttsError, setTtsError] = useState<string | null>(null)
   const ttsAudioRef = useRef<HTMLAudioElement | null>(null)
   const agentApiBase = (import.meta as any).env?.VITE_AGENT_API_BASE || 'http://localhost:8000'
 
@@ -1169,12 +1186,11 @@ function ChatOnboarding({ demoUsers = [], onContinue, onBotReply, onImageUpload,
   useEffect(() => {
     if (firstMessageRequestedRef.current) return
     firstMessageRequestedRef.current = true
-    const now = new Date()
-    setLiveMessages([{
-      from: 'bot',
-      text: 'Namaste! Welcome to AI Sahayak. What is your preferred language for communication?',
-      time: formatISTTime(now),
-    }])
+    const welcomeText = 'Namaste! Welcome to AI Sahayak. What is your preferred language for communication?'
+    setLiveMessages((prev) => {
+      if (prev.length > 0) return prev
+      return [{ from: 'bot', text: welcomeText, time: formatISTTime(new Date()) }]
+    })
     setLastSuggestedActions(['English', 'Hindi', 'Hinglish'])
   }, [])
 
@@ -1197,7 +1213,14 @@ function ChatOnboarding({ demoUsers = [], onContinue, onBotReply, onImageUpload,
     try {
       if (onBotReply) {
         const result = await onBotReply(text.trim())
-        if (result.reply) setLiveMessages((prev) => [...prev, { from: 'bot', text: result.reply, time: nowTime() }])
+        if (result.reply) {
+          setLiveMessages((prev) => {
+            const r = normalizeMessageText(result.reply!)
+            const isDuplicate = prev.some((m) => m.from === 'bot' && normalizeMessageText(m.text) === r)
+            if (isDuplicate) return prev
+            return [...prev, { from: 'bot', text: result.reply!, time: nowTime() }]
+          })
+        }
         setLastSuggestedActions(result.suggestedActions ?? [])
       } else {
         setLiveMessages((prev) => [
@@ -1268,7 +1291,13 @@ function ChatOnboarding({ demoUsers = [], onContinue, onBotReply, onImageUpload,
     try {
       if (onBotReply) {
         const result = await onBotReply(`Document attached: ${name}`)
-        if (result.reply) setLiveMessages((prev) => [...prev, { from: 'bot', text: result.reply, time: nowTime() }])
+        if (result.reply) {
+          setLiveMessages((prev) => {
+            const r = normalizeMessageText(result.reply!)
+            if (prev.some((m) => m.from === 'bot' && normalizeMessageText(m.text) === r)) return prev
+            return [...prev, { from: 'bot', text: result.reply!, time: nowTime() }]
+          })
+        }
         setLastSuggestedActions(result.suggestedActions ?? [])
       } else {
         setLiveMessages((prev) => [...prev, { from: 'bot', text: "Thanks for uploading. We'll use this for verification.", time: nowTime() }])
@@ -1340,6 +1369,7 @@ function ChatOnboarding({ demoUsers = [], onContinue, onBotReply, onImageUpload,
 
   async function playTts(text: string, msgIdx: number) {
     if (!text.trim() || playingTtsIdx !== null) return
+    setTtsError(null)
     setPlayingTtsIdx(msgIdx)
     try {
       const res = await fetch(`${agentApiBase}/v1/tts`, {
@@ -1361,6 +1391,8 @@ function ChatOnboarding({ demoUsers = [], onContinue, onBotReply, onImageUpload,
       await audio.play()
     } catch {
       setPlayingTtsIdx(null)
+      setTtsError('Voice unavailable (Polly)')
+      setTimeout(() => setTtsError(null), 4000)
     }
   }
 
@@ -1691,8 +1723,9 @@ function ChatOnboarding({ demoUsers = [], onContinue, onBotReply, onImageUpload,
                           )}
                           {msg.from === 'bot' && (() => {
                             const t = msg.text.toLowerCase()
+                            const isSummaryOrCredential = /I know the following|here'?s what I know|what I know about your store|you've just completed onboarding|user id:|password:/i.test(msg.text)
                             const isAskingForLocation = (t.includes('location') || t.includes('pincode')) &&
-                              !/I know the following|your name:|\*\*location\*\*|^location:\s*\S|store name:/mi.test(msg.text)
+                              !/I know the following|your name:|\*\*location\*\*|^location:\s*\S|store name:/mi.test(msg.text) && !isSummaryOrCredential
                             return isAskingForLocation
                           })() && (
                             <button type="button"
@@ -1704,7 +1737,7 @@ function ChatOnboarding({ demoUsers = [], onContinue, onBotReply, onImageUpload,
                           )}
                           {msg.from === 'bot' && (() => {
                             const t = msg.text.toLowerCase()
-                            const isSummaryOrHasAadhar = /I know the following|here'?s the information we have|information we have about you|store owner.*store type|aadhar number:\s*\d|aadhar.*\d{12}|gst status/i.test(msg.text)
+                            const isSummaryOrHasAadhar = /I know the following|here'?s the information we have|information we have about you|store owner.*store type|aadhar number:\s*\d|aadhar.*\d{12}|gst status|here'?s what I know|what I know about your store|you've just completed onboarding|no sales\/inventory data available yet/i.test(msg.text)
                             const isAskingForAadhar = t.includes('aadhar') &&
                               !/gst number|do you have a gst|do you have gst/i.test(msg.text) &&
                               !isSummaryOrHasAadhar
@@ -1724,8 +1757,8 @@ function ChatOnboarding({ demoUsers = [], onContinue, onBotReply, onImageUpload,
                           </div>
                         </div>
                       </div>
-                      {/* Poll-style language options directly under this bot message */}
-                      {msg.from === 'bot' && idx === lastBotIdx && languagePollOptions.length > 0 && (
+                      {/* Poll-style language options only under the welcome language question */}
+                      {msg.from === 'bot' && idx === lastBotIdx && languagePollOptions.length > 0 && /preferred language|language for communication/i.test(msg.text) && (
                         <div style={{ maxWidth: '85%', marginTop: 6, display: 'flex', flexDirection: 'column' as const, gap: 6 }}>
                           {languagePollOptions.map((label) => {
                             const displayLabel = stripEmoji(label) || label
@@ -1765,6 +1798,9 @@ function ChatOnboarding({ demoUsers = [], onContinue, onBotReply, onImageUpload,
                       {[0,150,300].map(d => <span key={d} className="rounded-full animate-bounce" style={{ width: 5, height: 5, background: '#8696a0', animationDelay: `${d}ms`, display: 'inline-block' }} />)}
                     </div>
                   </div>
+                )}
+                {ttsError && (
+                  <p className="text-xs text-amber-600 mt-1" role="alert">{ttsError}</p>
                 )}
                 <div ref={chatEndRef} />
               </div>

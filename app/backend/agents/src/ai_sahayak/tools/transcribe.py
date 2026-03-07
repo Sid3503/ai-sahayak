@@ -2,6 +2,7 @@
 Speech-to-text for voice messages using Amazon Transcribe.
 Audio is uploaded to S3, then a transcription job is run; the transcript is returned.
 If TRANSCRIBE_MEDIA_BUCKET is not set, returns None (caller should use placeholder text).
+Model-agnostic: does not use Bedrock (Nova/Qwen); works the same with any chat model.
 """
 import base64
 import json

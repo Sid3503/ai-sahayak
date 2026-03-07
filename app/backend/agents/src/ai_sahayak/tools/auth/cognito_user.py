@@ -22,7 +22,7 @@ def ensure_cognito_user(username: str, password: str, *, name: Optional[str] = N
     """
     pool_id = (settings.COGNITO_USER_POOL_ID or "").strip()
     if not pool_id:
-        print("Cognito: COGNITO_USER_POOL_ID not set in .env — no user created. Add it to link chat credentials to Dashboard login.")
+        print("[Cognito] COGNITO_USER_POOL_ID not set in .env — user NOT created. Add it (same as VITE_COGNITO_USER_POOL_ID) and restart the backend.")
         return False
 
     # Cognito username: alphanumeric and _.- only; normalize for consistency
@@ -52,9 +52,9 @@ def ensure_cognito_user(username: str, password: str, *, name: Optional[str] = N
             if user_attrs:
                 create_kw["UserAttributes"] = user_attrs
             client.admin_create_user(**create_kw)
-            print(f"Cognito: user '{safe_username}' created in pool {pool_id}. Check Cognito → User pools → your pool → Users.")
+            print(f"[Cognito] User '{safe_username}' created in pool {pool_id}. They can sign in on the Dashboard with this User ID and password.")
         except client.exceptions.UsernameExistsException:
-            print(f"Cognito: user '{safe_username}' already exists, updating password.")
+            print(f"[Cognito] User '{safe_username}' already exists; password updated.")
             name_attrs = [a for a in user_attrs if a["Name"] == "name"]
             if name_attrs:
                 try:
@@ -79,7 +79,7 @@ def ensure_cognito_user(username: str, password: str, *, name: Optional[str] = N
         import traceback
         err_msg = str(e).lower()
         if "access denied" in err_msg or "not authorized" in err_msg:
-            print("Cognito: IAM credentials need cognito-idp:AdminCreateUser and AdminSetUserPassword on this user pool.")
-        print(f"Cognito ensure user failed for '{safe_username}': {e}")
+            print("[Cognito] IAM credentials need cognito-idp:AdminCreateUser and AdminSetUserPassword on this user pool.")
+        print(f"[Cognito] ensure user failed for '{safe_username}': {e}")
         traceback.print_exc()
         return False
