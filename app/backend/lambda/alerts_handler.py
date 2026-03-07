@@ -42,7 +42,16 @@ NEWS_RSS_URLS = [
     "https://economictimes.indiatimes.com/markets/rssfeeds/1977021501.cms",
 ]
 
-# Keywords that make news RELEVANT to Raju (Kirana owner)
+# Display names for all retailers — alerts say "Raju Bhai" / "Ramesh Bhai" etc. per user
+DISPLAY_NAMES = {
+    "raju": "Raju Bhai",
+    "ramesh": "Ramesh Bhai",
+    "suresh": "Suresh Bhai",
+    "kanta": "Kanta Didi",
+    "lakshmi": "Lakshmi Didi",
+}
+
+# Keywords that make news RELEVANT to Kirana / small shop owner
 RELEVANT_KEYWORDS = [
     "fmcg", "kirana", "retail", "grocery", "price hike", "price rise", "price cut",
     "inflation", "gst", "tax", "wholesale", "edible oil", "sugar", "wheat", "flour",
@@ -66,8 +75,9 @@ STATE_CODE_MAP = {
     "CG": "cg",  "HP": "hp_jk", "JK": "hp_jk", "LA": "hp_jk",
 }
 
+# Templates use {person} for personalization (Raju Bhai, Ramesh Bhai, etc.)
 FESTIVAL_MESSAGES = {
-    "holi":                 "Raju Bhai, Holi aa rahi hai! Gulal, Pichkari, Ghee aur Shakkar ka stock check karo!",
+    "holi":                 "{person}, Holi aa rahi hai! Gulal, Pichkari, Ghee aur Shakkar ka stock check karo!",
     "holika dahan":         "Kal Holika Dahan hai! Naariyal aur Pooja items ka stock ready rakho.",
     "diwali":               "Diwali aane wali hai! Mithai, Dry fruits, Diyas, Candles aur Gift packs ka stock prepare karo. Ye season miss mat karo!",
     "chaitra navratri":     "Navratri shuru hone wali hai! Sabudana, Singhara atta, Kuttu aur Fruits ka stock badha lo.",
@@ -100,7 +110,7 @@ FESTIVAL_MESSAGES = {
     "dhanteras":            "Dhanteras aa raha hai! Brooms, Diyas, Utensils aur Sweets ka stock ready rakho — ek din mein sabse zyada bikri!",
 }
 
-GENERIC_MESSAGE = "Raju Bhai, {name} aane wali hai! Stock check kar lijiye aur preparation shuru kar do."
+GENERIC_MESSAGE = "{person}, {name} aane wali hai! Stock check kar lijiye aur preparation shuru kar do."
 
 
 def event_confidence_score(days_until_event: int, event_type: str = "festival") -> int:
@@ -138,7 +148,7 @@ def get_all_users():
     table = DYNAMO.Table(USERS_TABLE)
     try:
         resp = table.scan(
-            ProjectionExpression="user_id, #st, city, phone, alert_days_before, alert_time_hour_ist",
+            ProjectionExpression="user_id, #st, city, phone, alert_days_before, alert_time_hour_ist, alert_time_minute_ist",
             ExpressionAttributeNames={"#st": "state"}
         )
         return resp.get("Items", [])
@@ -152,7 +162,13 @@ def days_until(date_str, today_ist):
     return (event_date - today_ist.date()).days
 
 
-def build_hinglish_message(event_name, days):
+def get_display_name(user_id):
+    """For Live Alerts: raju -> Raju Bhai, ramesh -> Ramesh Bhai, etc. So each user sees their name."""
+    uid = (user_id or "").strip().lower()
+    return DISPLAY_NAMES.get(uid) or f"{uid.capitalize()} Bhai" if uid else "Bhai"
+
+
+def build_hinglish_message(event_name, days, display_name="Raju Bhai"):
     key = event_name.lower()
     base = None
     for k, msg in FESTIVAL_MESSAGES.items():
@@ -160,7 +176,10 @@ def build_hinglish_message(event_name, days):
             base = msg
             break
     if not base:
-        base = GENERIC_MESSAGE.format(name=event_name)
+        base = GENERIC_MESSAGE.format(person=display_name, name=event_name)
+    else:
+        if "{person}" in base:
+            base = base.format(person=display_name)
 
     if days == 1:
         time_prefix = "Kal hai!"
@@ -216,6 +235,16 @@ def get_kirana_news():
     return None
 
 
+def _alerts_webhook_url():
+    """BACKEND_WEBHOOK_URL can be base (http://host) or full (http://host/v1/alerts/incoming). Return full URL."""
+    base = (BACKEND_WEBHOOK_URL or "").strip().rstrip("/")
+    if not base:
+        return ""
+    if "/v1/alerts" in base or base.endswith("/incoming"):
+        return base
+    return f"{base}/v1/alerts/incoming"
+
+
 def post_to_webhook(webhook_url, payload):
     try:
         req = urllib.request.Request(
@@ -224,7 +253,7 @@ def post_to_webhook(webhook_url, payload):
             headers={"Content-Type": "application/json"},
             method="POST",
         )
-        with urllib.request.urlopen(req, timeout=10) as r:
+        with urllib.request.urlopen(req, timeout=5) as r:
             return 200 <= r.status < 300
     except Exception as e:
         print(f"Webhook POST failed: {e}")
@@ -246,7 +275,7 @@ def _check_change_calendar_open() -> bool:
         return True
 
 
-def handler(event, context):
+def lambda_handler(event, context):
     if not CALENDAR_S3_BUCKET:
         print("ERROR: CALENDAR_S3_BUCKET env var not set")
         return {"statusCode": 400, "body": "CALENDAR_S3_BUCKET not set"}
@@ -278,20 +307,34 @@ def handler(event, context):
         "per_user": [],
     }
 
-    current_ist_hour = today_ist.hour  # 0-23, so each user gets alerts only at their chosen hour
+    current_ist_hour   = today_ist.hour    # 0-23
+    current_ist_minute = today_ist.minute  # 0-59; EventBridge runs at :00 and :30 so we only match 0 or 30
+    # Test mode: pass {"test_ignore_time": true} in the event to send alerts to everyone regardless of time (for console Test)
+    test_ignore_time = isinstance(event, dict) and event.get("test_ignore_time") is True
+    if test_ignore_time:
+        print("TEST MODE: ignoring time filter — sending alerts to all users")
 
     for user in users:
-        user_id    = user.get("user_id", "unknown")
-        state_code = (user.get("state") or "").upper()
-        city       = user.get("city", "")
+        user_id     = user.get("user_id", "unknown")
+        state_code  = (user.get("state") or "").upper()
+        city        = user.get("city", "")
+        webhook_url = _alerts_webhook_url()
 
-        # ── Hour filter: only send alerts at the user's chosen alert_time_hour_ist ──
+        # ── Time filter: send only at user's chosen hour and minute (0 or 30) ──
         try:
             user_alert_hour = int(user.get("alert_time_hour_ist") or DEFAULT_ALERT_HOUR_IST)
         except (TypeError, ValueError):
             user_alert_hour = DEFAULT_ALERT_HOUR_IST
-        if current_ist_hour != user_alert_hour:
-            print(f"User {user_id}: skip (wants {user_alert_hour}:00 IST, now {current_ist_hour}:00)")
+        user_alert_minute = user.get("alert_time_minute_ist")  # None, 0, or 30 (old items may not have it)
+        if user_alert_minute is not None:
+            try:
+                user_alert_minute = int(user_alert_minute)
+            except (TypeError, ValueError):
+                user_alert_minute = None
+        if user_alert_minute not in (0, 30):
+            user_alert_minute = None  # treat as "top of hour only"
+        if not test_ignore_time and current_ist_hour != user_alert_hour:
+            print(f"User {user_id}: skip (wants {user_alert_hour}:{(user_alert_minute if user_alert_minute is not None else 0):02d} IST, now {current_ist_hour}:{current_ist_minute:02d})")
             summary["per_user"].append({
                 "user_id": user_id,
                 "state": state_code,
@@ -300,6 +343,31 @@ def handler(event, context):
                 "alerts": 0,
                 "skipped": True,
                 "reason": "hour_mismatch",
+            })
+            continue
+        # Minute match: if user set 7:30, send only at 7:30; if user set 7 or no minute, send only at 7:00
+        if not test_ignore_time and user_alert_minute is not None and user_alert_minute != current_ist_minute:
+            print(f"User {user_id}: skip (wants {user_alert_hour}:{user_alert_minute:02d} IST, now {current_ist_hour}:{current_ist_minute:02d})")
+            summary["per_user"].append({
+                "user_id": user_id,
+                "state": state_code,
+                "city": city,
+                "alert_days_before": int(user.get("alert_days_before") or DEFAULT_ALERT_DAYS),
+                "alerts": 0,
+                "skipped": True,
+                "reason": "minute_mismatch",
+            })
+            continue
+        if not test_ignore_time and user_alert_minute is None and current_ist_minute != 0:
+            print(f"User {user_id}: skip (wants top of hour only, now {current_ist_hour}:{current_ist_minute:02d})")
+            summary["per_user"].append({
+                "user_id": user_id,
+                "state": state_code,
+                "city": city,
+                "alert_days_before": int(user.get("alert_days_before") or DEFAULT_ALERT_DAYS),
+                "alerts": 0,
+                "skipped": True,
+                "reason": "minute_mismatch",
             })
             continue
 
@@ -335,15 +403,15 @@ def handler(event, context):
             )
 
             if should_alert:
-                message  = build_hinglish_message(ev.get("name", "Event"), days)
+                message  = build_hinglish_message(ev.get("name", "Event"), days, get_display_name(user_id))
                 stock    = ev.get("stock_hint", "")
                 confidence = event_confidence_score(days, ev.get("type", "festival"))
                 full_msg = f"{message}\n💡 Stock tip: {stock}" if stock else message
                 print(f"ALERT for {user_id}: '{ev.get('name')}' in {days} days (confidence {confidence}%)")
 
                 sent = False
-                if BACKEND_WEBHOOK_URL:
-                    sent = post_to_webhook(BACKEND_WEBHOOK_URL, {
+                if webhook_url:
+                    sent = post_to_webhook(webhook_url, {
                         "user_id":    user_id,
                         "phone":      user.get("phone", ""),
                         "text":       full_msg,
@@ -362,8 +430,8 @@ def handler(event, context):
                     "sent":      sent,
                 })
 
-        if news_headline and BACKEND_WEBHOOK_URL:
-            post_to_webhook(BACKEND_WEBHOOK_URL, {
+        if news_headline and webhook_url:
+            post_to_webhook(webhook_url, {
                 "user_id":    user_id,
                 "phone":      user.get("phone", ""),
                 "text":       news_headline,

@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import './App.css'
 import { useAuth } from './authContext'
 import { SplashScreen, wasSplashAlreadySeen } from './SplashScreen'
@@ -76,7 +77,7 @@ function useInView(threshold = 0.12) {
   return [ref, hasSeen] as const
 }
 
-type View = 'landing' | 'chat' | 'dashboard' | 'day'
+type View = 'landing' | 'chat' | 'dashboard' | 'pricing'
 
 function LiveClock() {
   const time = useLiveClock()
@@ -112,14 +113,100 @@ function getOrCreateSessionId(): string {
 
 function App() {
   const auth = useAuth()
-  const [showSplash, setShowSplash] = useState(() => !wasSplashAlreadySeen())
+  // Show splash on first paint so logo/meaning always visible first; then hide if already seen this session
+  const [showSplash, setShowSplash] = useState(true)
+  useEffect(() => {
+    if (wasSplashAlreadySeen()) setShowSplash(false)
+  }, [])
   const [view, setView] = useState<View>('landing')
   const [dashboardLoggedIn, setDashboardLoggedIn] = useState(false)
   const [currentUsername, setCurrentUsername] = useState<string | null>(null)
   const [currentDisplayName, setCurrentDisplayName] = useState<string | null>(null)
-  const VIEW_ORDER: View[] = ['landing', 'chat', 'dashboard', 'day']
+  const VIEW_ORDER: View[] = ['landing', 'chat', 'dashboard', 'pricing']
   const currentStep = VIEW_ORDER.indexOf(view) + 1
   const scrollProgress = useScrollProgress()
+
+  // Swipe / keyboard: trackpad horizontal swipe (accumulated), touch swipe, or Arrow keys — left = next, right = prev
+  const contentRef = useRef<HTMLDivElement>(null)
+  const touchStartX = useRef<number | null>(null)
+  const lastSwipeAt = useRef(0)
+  const wheelAccum = useRef(0)
+  const wheelAccumAt = useRef(0)
+  const SWIPE_THRESHOLD = 60
+  const SWIPE_COOLDOWN_MS = 600
+  const WHEEL_ACCUM_MS = 300
+  const goNext = () => {
+    setView((v) => {
+      const i = VIEW_ORDER.indexOf(v)
+      return i < VIEW_ORDER.length - 1 ? VIEW_ORDER[i + 1] : v
+    })
+  }
+  const goPrev = () => {
+    setView((v) => {
+      const i = VIEW_ORDER.indexOf(v)
+      return i > 0 ? VIEW_ORDER[i - 1] : v
+    })
+  }
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return
+      if (e.key === 'ArrowRight') {
+        e.preventDefault()
+        goNext()
+      } else if (e.key === 'ArrowLeft') {
+        e.preventDefault()
+        goPrev()
+      }
+    }
+    const onWheel = (e: WheelEvent) => {
+      const now = Date.now()
+      if (now - lastSwipeAt.current < SWIPE_COOLDOWN_MS) return
+      if (Math.abs(e.deltaX) < 1 && Math.abs(e.deltaY) < 1) return
+      const isHorizontal = Math.abs(e.deltaX) >= Math.abs(e.deltaY)
+      if (!isHorizontal) {
+        wheelAccum.current = 0
+        return
+      }
+      if (now - wheelAccumAt.current > WHEEL_ACCUM_MS) wheelAccum.current = 0
+      wheelAccumAt.current = now
+      wheelAccum.current += e.deltaX
+      if (wheelAccum.current > SWIPE_THRESHOLD) {
+        e.preventDefault()
+        wheelAccum.current = 0
+        lastSwipeAt.current = now
+        goNext()
+      } else if (wheelAccum.current < -SWIPE_THRESHOLD) {
+        e.preventDefault()
+        wheelAccum.current = 0
+        lastSwipeAt.current = now
+        goPrev()
+      }
+    }
+    const onTouchStart = (e: TouchEvent) => {
+      touchStartX.current = e.touches[0].clientX
+    }
+    const onTouchEnd = (e: TouchEvent) => {
+      if (touchStartX.current == null) return
+      const dx = e.changedTouches[0].clientX - touchStartX.current
+      touchStartX.current = null
+      if (Math.abs(dx) < SWIPE_THRESHOLD) return
+      const now = Date.now()
+      if (now - lastSwipeAt.current < SWIPE_COOLDOWN_MS) return
+      lastSwipeAt.current = now
+      if (dx < 0) goNext()
+      else goPrev()
+    }
+    document.addEventListener('keydown', onKeyDown)
+    document.addEventListener('wheel', onWheel, { passive: false, capture: true })
+    document.addEventListener('touchstart', onTouchStart, { passive: true, capture: true })
+    document.addEventListener('touchend', onTouchEnd, { passive: true, capture: true })
+    return () => {
+      document.removeEventListener('keydown', onKeyDown)
+      document.removeEventListener('wheel', onWheel, { capture: true })
+      document.removeEventListener('touchstart', onTouchStart, { capture: true })
+      document.removeEventListener('touchend', onTouchEnd, { capture: true })
+    }
+  }, [])
 
   // Start with a fresh onboarding session when user opens the chat view (so bot doesn't greet "Raju" from a previous run)
   useEffect(() => {
@@ -226,9 +313,12 @@ function App() {
   const handleOnboardingVoiceMessage: OnboardingVoiceMessage = async (audioBase64: string, mimeType: string) => {
     const sessionId = getOrCreateSessionId()
     try {
+      const controller = new AbortController()
+      const timeoutId = setTimeout(() => controller.abort(), 90000)
       const response = await fetch(`${agentApiBase}/v1/webhook/incoming`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        signal: controller.signal,
         body: JSON.stringify({
           user_id: 'demo-user',
           text: 'Voice message',
@@ -240,6 +330,7 @@ function App() {
           audio_media_type: mimeType || 'audio/webm',
         }),
       })
+      clearTimeout(timeoutId)
       if (!response.ok) {
         const err = await response.json().catch(() => ({}))
         return { reply: err.detail || 'Voice not available. Please type your message.', transcribed_text: undefined }
@@ -256,15 +347,20 @@ function App() {
     { id: 'landing'   as const, num: 1, label: 'Home',        sub: 'Start here'      },
     { id: 'chat'      as const, num: 2, label: 'Onboarding',  sub: 'Setup via chat'  },
     { id: 'dashboard' as const, num: 3, label: 'Dashboard',   sub: 'Command center'  },
-    { id: 'day'       as const, num: 4, label: 'Live Alerts',  sub: 'Real-time view'  },
+    { id: 'pricing'   as const, num: 4, label: 'Pricing',     sub: 'MSME plans'      },
   ]
 
+  const baseShellClasses = 'flex flex-col min-h-screen w-full min-w-0 text-slate-800 relative bg-[#fefbf5]'
+
   return (
-    <div className="min-h-screen text-slate-800 relative bg-[#fefbf5]">
+    <>
       {showSplash && <SplashScreen onDismiss={() => setShowSplash(false)} />}
 
-      {/* Tricolor strip — Bharat (top) */}
-      <div className="fixed top-0 left-0 right-0 z-[51] flex h-1.5">
+      {/* Shell only mounts after Continue — so navbar + content "fall into place" on first paint */}
+      {!showSplash && (
+      <div className={baseShellClasses}>
+      {/* Tricolor strip — drops from top */}
+      <div className="shell-reveal-tricolor fixed top-0 left-0 right-0 z-[51] flex h-1.5">
         <div className="flex-1 bg-[#f59e0b]" />
         <div className="flex-1 bg-white" />
         <div className="flex-1 bg-[#16a34a]" />
@@ -340,47 +436,78 @@ function App() {
         </svg>
       </div>
 
-      {/* Scroll progress */}
-      <div className="fixed top-1.5 left-0 right-0 z-[60] h-0.5 bg-white/90">
-        <div className="h-full bg-gradient-to-r from-emerald-500 via-sahayak-amber to-emerald-500 transition-all duration-150" style={{ width: `${scrollProgress}%` }} />
+      {/* Scroll progress — glass bar */}
+      <div className="shell-reveal-scrollbar fixed top-1.5 left-0 right-0 z-[60] h-0.5 overflow-hidden rounded-full bg-white/40 backdrop-blur-sm border border-white/50">
+        <div className="h-full bg-gradient-to-r from-emerald-500 via-sahayak-amber to-emerald-500 transition-[width] duration-300 ease-out" style={{ width: `${scrollProgress}%` }} />
       </div>
 
-      {/* Navbar — light, clean */}
-      <header className="fixed top-1.5 left-0 right-0 z-50 border-b border-slate-200/80 bg-white/95 backdrop-blur-xl shadow-sm">
+      {/* Navbar — falls down from top, smooth hover/active */}
+      <header className="shell-reveal-navbar fixed top-1.5 left-0 right-0 z-50 border-b border-white/60 bg-white/80 backdrop-blur-2xl shadow-lg shadow-slate-200/40 transition-[background-color,border-color,box-shadow,transform] duration-500 ease-out">
         <div className="flex h-14 w-full items-center justify-between gap-4 px-4 md:px-8 lg:px-14">
           <div className="flex shrink-0 items-center gap-2">
             <button type="button" onClick={() => setView('landing')} className="flex items-center gap-2.5 group" aria-label="Go to Home">
-              <div className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-xl border-2 border-emerald-500/50 bg-white shadow-md transition group-hover:border-emerald-500">
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-xl border-2 border-emerald-500/50 bg-white shadow-md transition-all duration-400 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:border-emerald-500 group-hover:scale-[1.04] group-hover:shadow-lg group-hover:shadow-emerald-500/20 group-active:scale-[0.98]">
                 <img src="/Generated_image.png" alt="AI Sahayak" className="h-full w-full object-contain" />
               </div>
-              <div className="leading-none hidden sm:block">
-                <p className="text-sm font-bold tracking-tight text-slate-800">AI Sahayak</p>
+              <div className="leading-none hidden sm:block transition-colors duration-400">
+                <p className="text-sm font-bold tracking-tight text-slate-800 group-hover:text-slate-900">AI Sahayak</p>
                 <p className="mt-0.5 text-[0.6rem] font-medium text-emerald-600">by GenGurus</p>
               </div>
             </button>
           </div>
           <nav className="flex flex-1 items-center justify-center" aria-label="Journey steps">
-            <div className="flex items-center gap-1 p-1">
+            <div className="flex items-center gap-1 p-1 rounded-full bg-white/40 backdrop-blur-sm shadow-sm shadow-slate-200/40 border border-white/60 transition-all duration-400 ease-out hover:bg-white/50 hover:shadow-md">
               {NAV_STEPS.map((step, i) => {
                 const isActive = view === step.id
                 const isDone = currentStep > step.num
                 const isLast = i === NAV_STEPS.length - 1
                 return (
                   <div key={step.id} className="flex items-center">
-                    <button type="button" onClick={() => setView(step.id)} className={`group flex items-center gap-2 rounded-xl px-3 py-2 transition-all duration-200 ${isActive ? 'bg-emerald-500/15 border border-emerald-500/40 shadow-sm' : 'border border-transparent hover:bg-slate-100'}`}>
+                    <button
+                      type="button"
+                      onClick={() => setView(step.id)}
+                      className={`group relative flex items-center gap-2 rounded-xl px-3 py-2 transition-all duration-400 ease-[cubic-bezier(0.22,1,0.36,1)] active:scale-[0.97] ${
+                        isActive
+                          ? 'bg-emerald-500/15 border border-emerald-500/40 shadow-sm shadow-emerald-400/40'
+                          : 'border border-transparent hover:bg-white/70 hover:backdrop-blur-sm hover:shadow-md hover:-translate-y-0.5'
+                      }`}
+                    >
                       <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-bold ${isActive ? 'bg-emerald-500 text-white' : isDone ? 'bg-emerald-100 text-emerald-600 border border-emerald-200' : 'bg-slate-100 text-slate-500 border border-slate-200 group-hover:text-slate-700'}`}>
                         {isDone && !isActive ? <svg className="h-3 w-3" viewBox="0 0 12 12" fill="none"><path d="M2 6l3 3 5-5" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"/></svg> : step.num}
                       </span>
                       <span className="whitespace-nowrap text-left hidden md:block">
-                        <span className={`block text-xs font-semibold leading-tight ${isActive ? 'text-slate-900' : isDone ? 'text-emerald-700' : 'text-slate-500 group-hover:text-slate-700'}`}>{step.label}</span>
-                        <span className={`block text-[0.6rem] leading-tight mt-0.5 ${isActive ? 'text-emerald-600' : 'text-slate-400'}`}>{step.sub}</span>
+                        <span
+                          className={`block text-xs font-semibold leading-tight ${
+                            isActive
+                              ? 'text-slate-900'
+                              : isDone
+                                ? 'text-emerald-700'
+                                : 'text-slate-500 group-hover:text-slate-700'
+                          }`}
+                        >
+                          {step.label}
+                        </span>
+                        <span
+                          className={`block text-[0.6rem] leading-tight mt-0.5 ${
+                            isActive ? 'text-emerald-600' : 'text-slate-400'
+                          }`}
+                        >
+                          {step.sub}
+                        </span>
                       </span>
+                      {/* Underline glow */}
+                      <span
+                        className={`pointer-events-none absolute inset-x-2 -bottom-1 h-[2px] rounded-full bg-gradient-to-r from-emerald-400 via-sahayak-amber to-emerald-500 transition-all duration-400 ease-[cubic-bezier(0.22,1,0.36,1)] ${
+                          isActive ? 'opacity-100 scale-x-100' : 'opacity-0 scale-x-50 group-hover:opacity-70 group-hover:scale-x-100'
+                        }`}
+                      />
                     </button>
                     {!isLast && <div className={`w-1.5 h-1.5 rounded-full mx-0.5 shrink-0 ${isDone ? 'bg-emerald-300' : 'bg-slate-300'}`} aria-hidden />}
                   </div>
                 )
               })}
             </div>
+            <span className="hidden md:inline text-[0.65rem] text-slate-400 ml-2" title="Swipe or use arrow keys to change page">← →</span>
           </nav>
           <div className="flex items-center gap-3">
             <LiveClock />
@@ -389,13 +516,14 @@ function App() {
         <div className="h-0.5 w-full bg-gradient-to-r from-sahayak-amber via-emerald-500 to-sahayak-green" />
       </header>
 
-      {/* Content area – above background layers so iframe is fully visible */}
-      <div className="relative flex flex-1 flex-col" style={{ zIndex: 10 }}>
+      {/* Content area — falls into place; supports swipe left/right to change page */}
+      <div ref={contentRef} className="shell-reveal-content relative flex flex-1 flex-col w-full min-w-0" style={{ zIndex: 10, width: '100%' }}>
         {view === 'landing' && (
           <Landing
             onStart={() => setView('chat')}
             onSkipToDashboard={() => setView('dashboard')}
-            onSkipToDay={() => setView('day')}
+            onSkipToDay={() => setView('dashboard')}
+            onPricing={() => setView('pricing')}
           />
         )}
         {view === 'chat' && (
@@ -403,6 +531,7 @@ function App() {
             {/* Bharat theme: let global gradient show; tricolor strip under header */}
             <div className="h-1 w-full shrink-0 bg-gradient-to-r from-sahayak-amber via-emerald-500 to-sahayak-green" />
             <ChatOnboarding
+              demoUsers={DEMO_USERS}
               onContinue={() => setView('dashboard')}
               onBotReply={handleOnboardingBotReply}
               onImageUpload={handleOnboardingImageUpload}
@@ -411,13 +540,30 @@ function App() {
           </div>
         )}
         {view === 'dashboard' && (
-          <div className={`flex flex-1 flex-col w-full min-h-screen ${isAuthenticatedForDashboard ? 'px-4 md:px-8 lg:px-14' : 'mx-auto max-w-7xl px-4 md:px-8'} pt-[5rem] pb-6 md:pt-[5rem] md:pb-8`}>
+          <div
+            className={`flex flex-col w-full min-w-0 ${isAuthenticatedForDashboard ? '' : 'flex-1 mx-auto max-w-7xl px-4 md:px-8 pt-[4rem]'}`}
+            style={
+              isAuthenticatedForDashboard
+                ? {
+                    position: 'fixed',
+                    top: '4rem',
+                    left: 0,
+                    right: 0,
+                    bottom: 0,
+                    width: '100%',
+                    overflow: 'hidden',
+                    zIndex: 10,
+                    display: 'flex',
+                    flexDirection: 'column',
+                  }
+                : { minHeight: 'calc(100vh - 4rem)', overflow: 'visible' }
+            }
+          >
             {isAuthenticatedForDashboard ? (
               <Dashboard
                 key={currentUsername ?? 'anon'}
                 welcomeName={currentDisplayName ?? currentUsername}
                 onBackToChat={() => setView('chat')}
-                onToRajuDay={() => setView('day')}
                 onLogout={async () => {
                   try {
                     await signOut()
@@ -455,18 +601,108 @@ function App() {
             )}
           </div>
         )}
-        {view === 'day' && (
-          <div className="flex flex-1 flex-col w-full min-h-screen" style={{ paddingTop: '4rem' }}>
-            <RajuDay welcomeName={currentDisplayName ?? currentUsername} onBackToDashboard={() => setView('dashboard')} />
-          </div>
+        {view === 'pricing' && (
+          <PricingPage />
         )}
       </div>
     </div>
+      )}
+    </>
   )
 }
 
-function Landing(props: { onStart: () => void; onSkipToDashboard: () => void; onSkipToDay: () => void }) {
-  const { onStart, onSkipToDashboard, onSkipToDay } = props
+const TECH_COST_ROWS = [
+  { service: 'Amazon Bedrock (AI)', usage: '~40 chats/business/day, ~1K tokens each', perDay: '~₹4', perMonth: '~₹120', optional: false },
+  { service: 'Amazon Polly (voice-out)', usage: '~15 TTS plays/business/day — add-on for those who want voice', perDay: '~₹1', perMonth: '~₹30', optional: true },
+  { service: 'Amazon Transcribe', usage: '~3 min voice/business/day — add-on for those who want voice input', perDay: '~₹2', perMonth: '~₹60', optional: true },
+  { service: 'WhatsApp Business API (production)', usage: 'Chat + media, conversation-based; user stays on WhatsApp', perDay: '—', perMonth: 'Included in plan', optional: false },
+  { service: 'DynamoDB', usage: 'Profile, chat history, state', perDay: '~₹1', perMonth: '~₹30', optional: false },
+  { service: 'S3 + Lambda + OCR / Vision', usage: 'Ledger/bill photo upload, Amazon Textract/Recognition', perDay: '~₹0.50', perMonth: '~₹20', optional: false },
+  { service: 'Cognito / Auth', usage: 'Optional; WhatsApp number = login in production', perDay: '~₹0', perMonth: '~₹5', optional: false },
+] as const
+
+const MSME_PLANS = [
+  { id: 'monthly', name: 'Monthly', price: 299, period: 'month', save: null, popular: false },
+  { id: '3month', name: '3 Months', price: 799, period: '3 months', save: '~11%', popular: false },
+  { id: '6month', name: '6 Months', price: 1499, period: '6 months', save: '~17%', popular: true },
+  { id: 'yearly', name: '1 Year', price: 2499, period: '1 year', save: '~30%', popular: false },
+] as const
+
+function PricingPage() {
+  return (
+    <main className="relative z-10 flex flex-1 flex-col overflow-x-hidden pt-[4.5rem] pb-16 px-4 md:px-8 [scroll-behavior:smooth]">
+      <div className="mx-auto max-w-4xl w-full">
+        <h1 className="text-3xl font-black tracking-tight text-slate-900 md:text-4xl">Pricing for MSME</h1>
+        <p className="mt-2 text-slate-600">Transparent pricing for MSMEs — what we use, what it costs us, and what you pay.</p>
+        <p className="mt-1 text-sm font-medium text-slate-500">Full AWS stack (Bedrock, SageMaker, Transcribe, Polly, DynamoDB, S3, EventBridge). WhatsApp-first, built to scale for India’s small businesses.</p>
+
+        <section className="mt-10">
+          <h2 className="text-xl font-bold text-slate-900">What we use — and what it costs (per business)</h2>
+          <p className="mt-1 text-sm text-slate-600">Rough AWS cost for typical daily usage. Estimates for ap-south-1.</p>
+          <div className="mt-4 overflow-x-auto rounded-xl border-2 border-slate-200 bg-white/95 shadow-sm">
+            <table className="w-full min-w-[520px] text-left text-sm">
+              <thead>
+                <tr className="border-b border-slate-200 bg-slate-50/80">
+                  <th className="px-4 py-3 font-bold text-slate-800">Service</th>
+                  <th className="px-4 py-3 font-bold text-slate-800">Typical usage</th>
+                  <th className="px-4 py-3 font-bold text-slate-800">Cost/business/day</th>
+                  <th className="px-4 py-3 font-bold text-slate-800">Cost/business/month</th>
+                </tr>
+              </thead>
+              <tbody>
+                {TECH_COST_ROWS.map((row) => (
+                  <tr key={row.service} className={`border-b border-slate-100 last:border-0 ${row.optional ? 'bg-slate-50/80' : ''}`}>
+                    <td className="px-4 py-3 font-medium text-slate-800">
+                      {row.service}
+                      {row.optional && <span className="ml-2 rounded bg-slate-200 px-1.5 py-0.5 text-xs font-semibold text-slate-700">Optional</span>}
+                    </td>
+                    <td className="px-4 py-3 text-slate-600">{row.usage}</td>
+                    <td className="px-4 py-3 font-semibold text-emerald-700">{row.perDay}</td>
+                    <td className="px-4 py-3 font-semibold text-emerald-700">{row.perMonth}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <p className="mt-3 text-sm text-slate-500">Polly & Transcribe are <strong>optional</strong> — some businesses want voice (TTS/transcribe), some don’t. In WhatsApp-only production, many won’t need them; cost above is if they opt in.</p>
+          <p className="mt-1 text-sm text-slate-500">Base cost per business (no voice add-on): ~₹5–6/day → ~₹165/month (Bedrock + WhatsApp + DB + OCR). Plans are built on this with a small margin.</p>
+        </section>
+
+        <section className="mt-12">
+          <h2 className="text-xl font-bold text-slate-900">Plans for you</h2>
+          <p className="mt-1 text-sm text-slate-600">Same features in every plan. The only difference: <strong>commit longer → pay less per month</strong>, and your rate is locked for the plan period (no mid-term price increase).</p>
+          <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            {MSME_PLANS.map((plan) => (
+              <div key={plan.id} className={`relative rounded-2xl border-2 bg-white p-5 shadow-md transition-all hover:shadow-lg ${plan.popular ? 'border-emerald-500 bg-emerald-50/50' : 'border-slate-200'}`}>
+                {plan.popular && <span className="absolute -top-2.5 left-4 rounded-full bg-emerald-500 px-2.5 py-0.5 text-xs font-bold text-white">Best value</span>}
+                <p className="font-bold text-slate-900">{plan.name}</p>
+                <p className="mt-1 text-2xl font-black text-slate-900">₹{plan.price}<span className="text-sm font-semibold text-slate-500">/{plan.period}</span></p>
+                {plan.save && <p className="mt-1 text-sm font-medium text-emerald-600">{plan.save} off</p>}
+                <p className="mt-3 text-xs text-slate-500">Per business · Same features</p>
+              </div>
+            ))}
+          </div>
+          <p className="mt-4 text-sm text-slate-600"><strong>What you get in every plan:</strong> WhatsApp delivery, daily summary and proactive alerts, ledger/bill photo OCR, instant queries. No feature difference between Monthly and 1 Year — only a better price when you commit longer.</p>
+        </section>
+
+        <section className="mt-12 rounded-2xl border-2 border-slate-200 bg-slate-50/80 p-6 md:p-8">
+          <h2 className="text-xl font-bold text-slate-900">What’s included (production)</h2>
+          <p className="mt-2 text-sm text-slate-600">You use only WhatsApp — no app download, no password. Our backend does the rest; we use an internal dashboard for support and analytics (not part of your plan).</p>
+          <ul className="mt-4 list-inside list-disc space-y-1.5 text-sm text-slate-700">
+            <li><strong>Proactive delivery</strong> — daily 9 PM summary (earnings, stock alerts); event-based alerts (festival calendar, local demand) so you restock before the rush, not after.</li>
+            <li><strong>WhatsApp chat</strong> — onboarding, instant queries (e.g. last month profit), all in conversation.</li>
+            <li><strong>Ledger / bill photos</strong> — you send a photo; we run OCR (Amazon Textract/Recognition) and update your digital stock. Included in plan.</li>
+            <li><strong>Optional</strong> — voice (TTS / transcribe) and in-chat mini “dashboard” (WhatsApp Flow) when we support it.</li>
+          </ul>
+          <p className="mt-4 text-sm text-slate-600">Plans include WhatsApp Business API usage (conversation-based, within fair-use) and OCR for uploaded photos. High-volume or custom needs can be discussed separately.</p>
+        </section>
+      </div>
+    </main>
+  )
+}
+
+function Landing(props: { onStart: () => void; onSkipToDashboard: () => void; onSkipToDay: () => void; onPricing?: () => void }) {
+  const { onStart, onSkipToDashboard, onSkipToDay, onPricing } = props
   const [storyRef, storySeen] = useInView(0.08)
   const [statsRef, statsSeen] = useInView(0.08)
   const [diffRef, diffSeen] = useInView(0.08)
@@ -474,15 +710,15 @@ function Landing(props: { onStart: () => void; onSkipToDashboard: () => void; on
   const [ctaRef, ctaSeen] = useInView(0.1)
 
   return (
-    <main className="relative z-10 flex flex-1 flex-col overflow-x-hidden pt-[4rem]">
+    <main className="relative z-10 flex flex-1 flex-col overflow-x-hidden pt-[4rem] [scroll-behavior:smooth]">
 
       {/* ══ HERO ══ */}
       <section className="relative z-10 min-h-screen flex flex-col justify-center overflow-hidden">
         <div className="relative z-10 mx-auto max-w-7xl w-full px-4 py-16 md:py-20 md:px-8">
 
-          {/* Badge */}
+          {/* Badge — glass */}
           <div className="flex justify-center mb-8">
-            <span className="inline-flex items-center gap-2 rounded-full border-2 border-emerald-500/40 bg-white px-5 py-2.5 text-xs font-bold tracking-[0.15em] text-emerald-700 uppercase shadow-sm">
+            <span className="inline-flex items-center gap-2 rounded-full border-2 border-emerald-500/40 bg-white/80 backdrop-blur-md px-5 py-2.5 text-xs font-bold tracking-[0.15em] text-emerald-700 uppercase shadow-lg shadow-emerald-500/10 transition-all duration-400 ease-out hover:shadow-xl hover:scale-[1.03] active:scale-[0.99]">
               <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
               AWS AI for Bharat Hackathon · Professional Track
             </span>
@@ -490,29 +726,31 @@ function Landing(props: { onStart: () => void; onSkipToDashboard: () => void; on
 
           <div className="grid items-center gap-12 lg:grid-cols-2 lg:gap-20">
 
-            {/* Left: Copy — dark text on light */}
+            {/* Left: Copy — dark text on light, staggered entrance */}
             <div className="text-center lg:text-left">
-              <div className="inline-flex items-center gap-2 rounded-full border-2 border-amber-400 bg-amber-50 px-3 py-1.5 text-xs font-semibold text-amber-800 mb-5">
-                The problem: kirana stores lose ₹15,000+ every festive season
+              <div className="inline-flex items-center gap-2 rounded-full border-2 border-amber-400 bg-amber-50/90 backdrop-blur-sm px-3 py-1.5 text-xs font-semibold text-amber-800 mb-5 transition-all duration-300 opacity-0 animate-fade-in-up animate-delay-100">
+                The problem: MSMEs lose ₹15,000+ every festive season
               </div>
-              <h1 className="text-4xl font-black leading-[1.1] tracking-tight text-slate-900 md:text-5xl xl:text-6xl">
+              <h1 className="text-4xl font-black leading-[1.1] tracking-tight text-slate-900 md:text-5xl xl:text-6xl opacity-0 animate-fade-in-up animate-delay-200">
                 <span className="block text-slate-400 line-through decoration-rose-400 decoration-2 text-2xl md:text-3xl mb-2">Reactive chatbot</span>
                 <span className="block bg-gradient-to-r from-emerald-600 via-emerald-500 to-sahayak-amber bg-clip-text text-transparent pb-1">Proactive</span>
                 <span className="block text-slate-900">Intelligence</span>
               </h1>
-              <p className="mt-5 text-base font-medium leading-relaxed text-slate-700 md:text-lg max-w-lg mx-auto lg:mx-0">
+              <p className="mt-5 text-base font-medium leading-relaxed text-slate-700 md:text-lg max-w-lg mx-auto lg:mx-0 opacity-0 animate-fade-in-up animate-delay-300">
                 AI Sahayak warns <strong className="text-slate-900">your store</strong> — <strong className="text-slate-900">when you want</strong>: you choose how many days before and at what time. Before the festival, before the wedding season, before the demand spike. Not after shelves go empty.
               </p>
 
               <div className="mt-6 flex flex-wrap gap-2 justify-center lg:justify-start">
                 {[
                   'Alerts at a time you set',
-                  '92% demand confidence',
                   'Vernacular alerts',
                   'Dukaan news only — prices, GST, FMCG',
                   'Festival calendar',
+                  'Bedrock explains in Hinglish',
+                  'DeepAR demand forecast',
+                  'What-if scenarios',
                 ].map(text => (
-                  <span key={text} className="inline-flex items-center gap-1.5 rounded-full border-2 border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-800 shadow-sm">
+                  <span key={text} className="inline-flex items-center gap-1.5 rounded-full border-2 border-slate-200/80 bg-white/80 backdrop-blur-sm px-3 py-1.5 text-xs font-semibold text-slate-800 shadow-sm transition-all duration-400 ease-out hover:scale-[1.04] hover:shadow-lg hover:border-slate-300/80 active:scale-[0.99]">
                     {text}
                   </span>
                 ))}
@@ -520,13 +758,19 @@ function Landing(props: { onStart: () => void; onSkipToDashboard: () => void; on
 
               <div className="mt-8 flex flex-wrap gap-3 justify-center lg:justify-start">
                 <button type="button" onClick={onStart}
-                  className="inline-flex items-center gap-2 rounded-full bg-emerald-500 px-7 py-3.5 text-sm font-black text-white shadow-lg shadow-emerald-500/30 transition hover:bg-emerald-600 hover:scale-[1.02] active:scale-[0.98]">
+                  className="inline-flex items-center gap-2 rounded-full bg-emerald-500 px-7 py-3.5 text-sm font-black text-white shadow-lg shadow-emerald-500/30 transition-all duration-400 ease-[cubic-bezier(0.22,1,0.36,1)] hover:bg-emerald-600 hover:scale-[1.05] hover:shadow-xl hover:shadow-emerald-500/40 active:scale-[0.98]">
                   Start the Demo →
                 </button>
                 <button type="button" onClick={onSkipToDashboard}
-                  className="rounded-full border-2 border-slate-300 bg-white px-5 py-3.5 text-sm font-semibold text-slate-700 hover:bg-slate-50 hover:border-slate-400 transition">
+                  className="rounded-full border-2 border-slate-300 bg-white/90 backdrop-blur-sm px-5 py-3.5 text-sm font-semibold text-slate-700 transition-all duration-400 ease-[cubic-bezier(0.22,1,0.36,1)] hover:bg-white hover:border-slate-400 hover:shadow-lg hover:scale-[1.03] active:scale-[0.98]">
                   Dashboard →
                 </button>
+                {onPricing && (
+                  <button type="button" onClick={onPricing}
+                    className="rounded-full border-2 border-amber-400 bg-amber-50/90 backdrop-blur-sm px-5 py-3.5 text-sm font-semibold text-amber-800 transition-all duration-400 ease-[cubic-bezier(0.22,1,0.36,1)] hover:bg-amber-100 hover:border-amber-500 hover:shadow-lg hover:scale-[1.03] active:scale-[0.98]">
+                    Pricing (MSME) →
+                  </button>
+                )}
               </div>
 
               <div className="mt-8 flex items-center gap-4 justify-center lg:justify-start">
@@ -535,14 +779,14 @@ function Landing(props: { onStart: () => void; onSkipToDashboard: () => void; on
                     <div key={i} className="flex h-9 w-9 items-center justify-center rounded-full border-2 border-white bg-slate-200 text-xs font-bold text-slate-600 shadow-sm">{i}</div>
                   ))}
                 </div>
-                <p className="text-sm font-semibold text-slate-700"><strong className="text-slate-900">12–15M</strong> kiranas waiting for this</p>
+                <p className="text-sm font-semibold text-slate-700"><strong className="text-slate-900">12–15M</strong> MSME stores waiting for this</p>
               </div>
             </div>
 
             {/* Right: Phone mockup — warm Bharat frame */}
             <div className="flex justify-center lg:justify-end">
-              <div className="relative">
-                <div className="absolute inset-0 -m-6 rounded-3xl bg-gradient-to-br from-emerald-500/20 to-sahayak-amber/20 blur-2xl" />
+              <div className="relative transition-transform duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] hover:scale-[1.03] active:scale-[0.99]">
+                <div className="absolute inset-0 -m-6 rounded-3xl bg-gradient-to-br from-emerald-500/20 to-sahayak-amber/20 blur-2xl transition-opacity duration-500" />
                 <div className="relative w-64 md:w-72">
                   <div className="rounded-[2.5rem] border-[6px] shadow-2xl overflow-hidden" style={{ borderColor: '#f59e0b', boxShadow: '0 20px 50px -12px rgba(0,0,0,0.2), 0 0 0 1px rgba(245,158,11,0.2)' }}>
                     {/* Status bar */}
@@ -573,7 +817,7 @@ function Landing(props: { onStart: () => void; onSkipToDashboard: () => void; on
                       </div>
                       <div className="rounded-xl rounded-tl-none bg-amber-500/20 border border-amber-500/30 px-3 py-2 text-xs text-amber-100 max-w-[88%] shadow-sm">
                         Aaj ki sale: <strong className="text-emerald-400">₹18,400</strong> · +23% ↑
-                        <p className="mt-1 text-[0.55rem] text-amber-500/70">9:01 AM · SageMaker 87% conf.</p>
+                        <p className="mt-1 text-[0.55rem] text-amber-500/70">9:01 AM · SageMaker</p>
                       </div>
                       <div className="flex justify-end">
                         <div className="rounded-xl rounded-tr-none bg-emerald-700 px-3 py-2 text-xs text-white max-w-[75%] shadow-sm">
@@ -598,21 +842,17 @@ function Landing(props: { onStart: () => void; onSkipToDashboard: () => void; on
                     <p className="text-[0.55rem] font-bold text-emerald-600 uppercase tracking-wider">Live · at your chosen time</p>
                     <p className="text-xs font-black text-slate-800">EventBridge</p>
                   </div>
-                  <div className="absolute -left-3 -bottom-3 rounded-xl border-2 border-amber-500/60 bg-white px-2.5 py-1.5 shadow-xl">
-                    <p className="text-[0.55rem] font-bold text-amber-600 uppercase tracking-wider">Confidence</p>
-                    <p className="text-xs font-black text-slate-800">87%</p>
-                  </div>
                 </div>
               </div>
             </div>
           </div>
 
-          <div className="mt-16 overflow-hidden rounded-2xl border-2 border-slate-300 bg-white shadow-md">
+          <div className="mt-16 overflow-hidden rounded-2xl border border-white/60 bg-white/70 backdrop-blur-xl shadow-xl shadow-slate-200/40 transition-all duration-400 ease-out">
             <div className="animate-marquee flex whitespace-nowrap py-3">
               {[
                 'EventBridge — daily at a time that suits you',
                 'Festival alerts — you choose how many days before',
-                'SageMaker demand forecast — 92% confidence',
+                'SageMaker DeepAR demand forecast',
                 'Bedrock explains in Hinglish',
                 'Dukaan-relevant news only — price hike, GST, FMCG; no Nifty',
                 'Wedding season alerts — local events',
@@ -622,7 +862,7 @@ function Landing(props: { onStart: () => void; onSkipToDashboard: () => void; on
               ].concat([
                 'EventBridge — daily at a time that suits you',
                 'Festival alerts — you choose how many days before',
-                'SageMaker demand forecast — 92% confidence',
+                'SageMaker DeepAR demand forecast',
                 'Bedrock explains in Hinglish',
               ]).map((item, i) => (
                 <span key={i} className="inline-flex items-center gap-2 px-6 text-xs font-semibold text-slate-700">
@@ -643,18 +883,18 @@ function Landing(props: { onStart: () => void; onSkipToDashboard: () => void; on
         </div>
       </section>
 
-      <section className="relative z-10 border-b border-slate-200 py-8 bg-white/70 shadow-sm">
+      <section className="relative z-10 border-b border-slate-200/80 py-8 glass-strong shadow-inner">
         <div className="mx-auto max-w-5xl px-4">
           <p className="text-center text-[0.65rem] font-bold uppercase tracking-[0.3em] text-slate-600 mb-6">Demo Journey — Follow These 4 Steps</p>
           <div className="flex flex-wrap items-center justify-center gap-0">
             {[
-              { num: 1, icon: null, title: 'Home', sub: 'The problem', accent: 'border-slate-200 bg-slate-50', numColor: 'bg-slate-500 text-white' },
-              { num: 2, icon: null, title: 'Onboarding', sub: 'Setup via chat', accent: 'border-emerald-200 bg-emerald-50', numColor: 'bg-emerald-500 text-white' },
-              { num: 3, icon: null, title: 'Dashboard', sub: 'Command center', accent: 'border-emerald-200 bg-emerald-50', numColor: 'bg-emerald-500 text-white' },
-              { num: 4, icon: null, title: 'Live Alerts', sub: 'Real-time view', accent: 'border-amber-200 bg-amber-50', numColor: 'bg-amber-500 text-white' },
+              { num: 1, icon: null, title: 'Home', sub: 'The problem', accent: 'border-slate-200 bg-slate-50/90 backdrop-blur-sm', numColor: 'bg-slate-500 text-white' },
+              { num: 2, icon: null, title: 'Onboarding', sub: 'Setup via chat', accent: 'border-emerald-200 bg-emerald-50/90 backdrop-blur-sm', numColor: 'bg-emerald-500 text-white' },
+              { num: 3, icon: null, title: 'Dashboard', sub: 'Command center + Live Alerts', accent: 'border-emerald-200 bg-emerald-50/90 backdrop-blur-sm', numColor: 'bg-emerald-500 text-white' },
+              { num: 4, icon: null, title: 'Pricing', sub: 'MSME plans', accent: 'border-amber-200 bg-amber-50/90 backdrop-blur-sm', numColor: 'bg-amber-500 text-white' },
             ].map((item, i) => (
               <div key={item.title} className="flex items-center">
-                <div className={`relative flex items-center gap-3 rounded-2xl border-2 px-4 py-3 transition-all hover:-translate-y-0.5 hover:shadow-md ${item.accent}`}>
+                <div className={`relative flex items-center gap-3 rounded-2xl border-2 px-4 py-3 transition-all duration-400 ease-[cubic-bezier(0.22,1,0.36,1)] hover:-translate-y-1.5 hover:shadow-xl active:scale-[0.98] ${item.accent}`}>
                   <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-black ${item.numColor}`}>{item.num}</span>
                   {item.icon != null ? <span className="text-xl">{item.icon}</span> : null}
                   <div className="hidden sm:block">
@@ -674,27 +914,27 @@ function Landing(props: { onStart: () => void; onSkipToDashboard: () => void; on
         </div>
       </section>
 
-      <section ref={storyRef} className="relative z-10 py-16 md:py-24 border-t border-slate-200 bg-white/40">
-        <div className={`mx-auto max-w-5xl px-4 transition-all duration-700 ${storySeen ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}>
+      <section ref={storyRef} className="relative z-10 py-16 md:py-24 border-t border-slate-200/80 bg-white/30 backdrop-blur-sm">
+        <div className={`mx-auto max-w-5xl px-4 transition-all duration-700 ease-[cubic-bezier(0.22,1,0.36,1)] ${storySeen ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}>
           <p className="text-center text-xs font-bold uppercase tracking-[0.3em] text-emerald-700">The story behind AI Sahayak</p>
           <h2 className="mt-2 text-center text-3xl font-black text-slate-900 md:text-4xl">Meet Raju — Our Demo Persona</h2>
-          <p className="mx-auto mt-4 max-w-xl text-center text-slate-700 font-medium">A small shopkeeper from Indore — and a problem shared by 15 million kirana owners across India.</p>
+          <p className="mx-auto mt-4 max-w-xl text-center text-slate-700 font-medium">A small shopkeeper from Indore — and a problem shared by 15 million MSME owners across India.</p>
           <div className="mt-12 grid gap-6 md:grid-cols-3">
-            <div className="group relative rounded-3xl border-2 border-slate-300 bg-white p-7 shadow-lg transition-all hover:-translate-y-1 hover:shadow-xl">
+            <div className="group relative rounded-3xl border-2 border-slate-300/80 bg-white/80 backdrop-blur-md p-7 shadow-lg transition-all duration-400 ease-[cubic-bezier(0.22,1,0.36,1)] hover:-translate-y-2 hover:shadow-xl hover:border-slate-400/60">
               <div className="absolute -top-3 -left-3 h-8 w-8 rounded-full bg-slate-600 text-white text-xs font-black flex items-center justify-center shadow">1</div>
               <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-100 text-2xl font-black text-slate-500 mb-5">1</div>
-              <h3 className="text-lg font-bold text-slate-900">Raju — The Kirana Owner</h3>
-              <p className="mt-2 text-sm leading-relaxed text-slate-700 font-medium">Based in <strong className="text-slate-900">Rajwada area</strong>, Indore. Runs a mid-sized kirana store. Hardworking, honest — but manages inventory with <strong className="text-slate-900">memory and an old notebook</strong>.</p>
+              <h3 className="text-lg font-bold text-slate-900">Raju — The Shop Owner</h3>
+              <p className="mt-2 text-sm leading-relaxed text-slate-700 font-medium">Based in <strong className="text-slate-900">Rajwada area</strong>, Indore. Runs a mid-sized MSME store. Hardworking, honest — but manages inventory with <strong className="text-slate-900">memory and an old notebook</strong>.</p>
               <div className="mt-4 rounded-xl bg-slate-100 px-3 py-2 text-xs font-semibold text-slate-800 border-2 border-slate-200">Indore, MP · Est. 2009 · 15 years running</div>
             </div>
-            <div className="group relative rounded-3xl border-2 border-rose-300 bg-rose-50 p-7 shadow-lg transition-all hover:-translate-y-1 hover:shadow-xl">
+            <div className="group relative rounded-3xl border-2 border-rose-300/80 bg-rose-50/90 backdrop-blur-md p-7 shadow-lg transition-all duration-400 ease-[cubic-bezier(0.22,1,0.36,1)] hover:-translate-y-2 hover:shadow-xl hover:border-rose-400/60">
               <div className="absolute -top-3 -left-3 h-8 w-8 rounded-full bg-rose-500 text-white text-xs font-black flex items-center justify-center shadow">2</div>
               <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-rose-100 text-2xl font-black text-rose-600 mb-5">2</div>
               <h3 className="text-lg font-bold text-slate-900">The Holi Season Problem</h3>
               <p className="mt-2 text-sm leading-relaxed text-slate-700 font-medium">A festival and local wedding season overlapped. Ghee and Mustard Oil ran out 3 days early — customers left empty-handed.</p>
               <div className="mt-4 rounded-xl bg-rose-100 px-3 py-2 text-sm font-bold text-rose-700 border border-rose-200">Loss: ₹15,000+ in a single festive week</div>
             </div>
-            <div className="group relative rounded-3xl border-2 border-emerald-300 bg-emerald-50 p-7 shadow-lg transition-all hover:-translate-y-1 hover:shadow-xl">
+            <div className="group relative rounded-3xl border-2 border-emerald-300/80 bg-emerald-50/90 backdrop-blur-md p-7 shadow-lg transition-all duration-400 ease-[cubic-bezier(0.22,1,0.36,1)] hover:-translate-y-2 hover:shadow-xl hover:border-emerald-400/60">
               <div className="absolute -top-3 -left-3 h-8 w-8 rounded-full bg-emerald-500 text-white text-xs font-black flex items-center justify-center shadow">3</div>
               <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-emerald-100 text-2xl font-black text-emerald-600 mb-5">3</div>
               <h3 className="text-lg font-bold text-slate-900">The AI Sahayak Solution</h3>
@@ -705,18 +945,18 @@ function Landing(props: { onStart: () => void; onSkipToDashboard: () => void; on
         </div>
       </section>
 
-      <section ref={statsRef} className="relative z-10 py-16 md:py-24 border-t border-slate-200 bg-white/30">
-        <div className={`mx-auto max-w-5xl px-4 transition-all duration-700 ${statsSeen ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}>
+      <section ref={statsRef} className="relative z-10 py-16 md:py-24 border-t border-slate-200/80 bg-white/25 backdrop-blur-sm">
+        <div className={`mx-auto max-w-5xl px-4 transition-all duration-700 ease-out ${statsSeen ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}>
           <p className="text-center text-xs font-bold uppercase tracking-[0.3em] text-emerald-700 mb-2">Numbers that matter</p>
-          <h2 className="text-center text-3xl font-black text-slate-900 md:text-4xl mb-12">India's Kirana Stores</h2>
+          <h2 className="text-center text-3xl font-black text-slate-900 md:text-4xl mb-12">India&apos;s MSMEs</h2>
           <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
             {[
-              { val: '12–15M', label: 'Kirana stores across India', color: 'text-amber-700', bg: 'bg-amber-50 border-amber-300' },
+              { val: '12–15M', label: 'MSME stores across India', color: 'text-amber-700', bg: 'bg-amber-50 border-amber-300' },
               { val: '~11%', label: "India's GDP contribution", color: 'text-emerald-700', bg: 'bg-emerald-50 border-emerald-300' },
-              { val: '~40M', label: 'Jobs dependent on kiranas', color: 'text-sky-700', bg: 'bg-sky-50 border-sky-300' },
+              { val: '~40M', label: 'Jobs dependent on MSMEs', color: 'text-sky-700', bg: 'bg-sky-50 border-sky-300' },
               { val: '₹120B+', label: 'Lost to inventory chaos yearly', color: 'text-rose-700', bg: 'bg-rose-50 border-rose-300' },
             ].map((s) => (
-              <div key={s.val} className={`rounded-2xl border-2 ${s.bg} bg-white p-5 text-center shadow-md transition hover:scale-[1.02] hover:shadow-lg`}>
+              <div key={s.val} className={`rounded-2xl border-2 ${s.bg} bg-white/85 backdrop-blur-sm p-5 text-center shadow-md transition-all duration-300 ease-out hover:scale-[1.03] hover:shadow-xl`}>
                 <p className={`text-3xl font-black md:text-4xl ${s.color}`}>{s.val}</p>
                 <p className="mt-2 text-xs font-semibold text-slate-700 leading-snug">{s.label}</p>
               </div>
@@ -725,13 +965,13 @@ function Landing(props: { onStart: () => void; onSkipToDashboard: () => void; on
         </div>
       </section>
 
-      <section ref={diffRef} className="relative z-10 py-16 md:py-24 border-t border-slate-200 bg-white/40">
-        <div className={`mx-auto max-w-5xl px-4 transition-all duration-700 ${diffSeen ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}>
+      <section ref={diffRef} className="relative z-10 py-16 md:py-24 border-t border-slate-200/80 bg-white/35 backdrop-blur-sm">
+        <div className={`mx-auto max-w-5xl px-4 transition-all duration-700 ease-out ${diffSeen ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}>
           <p className="text-center text-xs font-bold uppercase tracking-[0.3em] text-emerald-700 mb-2">How we are different</p>
           <h2 className="text-center text-3xl font-black text-slate-900 md:text-4xl mb-4">Not Reactive — <span className="text-emerald-600">Proactive</span></h2>
           <p className="text-center text-slate-700 font-medium mb-12 max-w-xl mx-auto">Other tools only show you data. We alert you <em>proactively</em> — before the loss happens.</p>
           <div className="grid gap-6 md:grid-cols-2">
-            <div className="rounded-2xl border-2 border-slate-300 bg-white p-7 shadow-md">
+            <div className="rounded-2xl border-2 border-slate-300/80 bg-white/85 backdrop-blur-md p-7 shadow-md transition-all duration-300 ease-out hover:shadow-lg hover:-translate-y-0.5">
               <div className="flex items-center gap-3 mb-5">
                 <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-rose-100 text-sm font-black text-rose-600">—</span>
                 <div>
@@ -745,7 +985,7 @@ function Landing(props: { onStart: () => void; onSkipToDashboard: () => void; on
                 ))}
               </ul>
             </div>
-            <div className="rounded-2xl border-2 border-emerald-400 bg-emerald-50 p-7 shadow-lg">
+            <div className="rounded-2xl border-2 border-emerald-400/90 bg-emerald-50/90 backdrop-blur-md p-7 shadow-lg transition-all duration-300 ease-out hover:shadow-xl hover:-translate-y-0.5">
               <div className="flex items-center gap-3 mb-5">
                 <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-200 text-sm font-black text-emerald-700">+</span>
                 <div>
@@ -754,7 +994,7 @@ function Landing(props: { onStart: () => void; onSkipToDashboard: () => void; on
                 </div>
               </div>
               <ul className="space-y-3 text-sm font-medium text-slate-700">
-                {['EventBridge: daily check at a time you set', 'Proactive alert — you choose how many days before', 'SageMaker: demand confidence score (92%)', 'Bedrock: explains why, in plain language'].map(t => (
+                {['EventBridge: daily check at a time you set', 'Proactive alert — you choose how many days before', 'SageMaker DeepAR: demand forecast', 'Bedrock: explains why, in plain language'].map(t => (
                   <li key={t} className="flex gap-2 items-start"><span className="text-emerald-500 mt-0.5 shrink-0 font-bold">✓</span>{t}</li>
                 ))}
               </ul>
@@ -763,31 +1003,36 @@ function Landing(props: { onStart: () => void; onSkipToDashboard: () => void; on
         </div>
       </section>
 
-      <section ref={techRef} className="relative z-10 py-16 md:py-24 border-t border-slate-200 bg-white/30">
-        <div className={`mx-auto max-w-5xl px-4 transition-all duration-700 ${techSeen ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}>
+      <section ref={techRef} className="relative z-10 py-16 md:py-24 border-t border-slate-200/80 bg-white/25 backdrop-blur-sm">
+        <div className={`mx-auto max-w-6xl px-4 transition-all duration-700 ease-out ${techSeen ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}>
           <p className="text-center text-xs font-bold uppercase tracking-[0.3em] text-amber-700 mb-2">Powered by AWS</p>
-          <h2 className="text-center text-2xl font-black text-slate-900 md:text-3xl mb-10">The AWS tech stack powering this</h2>
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+          <h2 className="text-center text-2xl font-black text-slate-900 md:text-3xl mb-8">The AWS tech stack powering this</h2>
+          <div className="flex flex-nowrap items-stretch gap-3 overflow-x-auto pb-2 px-1 min-h-[3.25rem] w-full" style={{ scrollbarWidth: 'thin' }}>
             {[
-              { name: 'EventBridge', role: 'Daily at your chosen time', icon: null, color: 'bg-orange-50 border-orange-300' },
-              { name: 'Lambda', role: 'Festival check', icon: 'λ', color: 'bg-amber-50 border-amber-300' },
-              { name: 'Bedrock', role: 'Hinglish AI', icon: null, color: 'bg-violet-50 border-violet-300' },
-              { name: 'SageMaker', role: 'Demand forecast', icon: null, color: 'bg-sky-50 border-sky-300' },
-              { name: 'DynamoDB', role: 'Store data', icon: null, color: 'bg-emerald-50 border-emerald-300' },
-              { name: 'S3', role: 'Festival calendar', icon: null, color: 'bg-green-50 border-green-300' },
+              { name: 'Lambda', role: 'Festival check', color: 'bg-amber-50 border-amber-300' },
+              { name: 'EC2', role: 'Compute', color: 'bg-rose-50 border-rose-300' },
+              { name: 'Amplify', role: 'Hosting & CI/CD', color: 'bg-amber-50/80 border-amber-400' },
+              { name: 'DynamoDB', role: 'Store data', color: 'bg-emerald-50 border-emerald-300' },
+              { name: 'S3', role: 'Festival calendar', color: 'bg-green-50 border-green-300' },
+              { name: 'Bedrock', role: 'Hinglish AI', color: 'bg-violet-50 border-violet-300' },
+              { name: 'SageMaker', role: 'Demand forecast', color: 'bg-sky-50 border-sky-300' },
+              { name: 'EventBridge', role: 'Daily at your chosen time', color: 'bg-orange-50 border-orange-300' },
+              { name: 'Cognito', role: 'Auth & sign-in', color: 'bg-indigo-50 border-indigo-300' },
+              { name: 'Transcribe', role: 'Voice to text', color: 'bg-teal-50 border-teal-300' },
+              { name: 'Polly', role: 'Text to speech', color: 'bg-rose-50 border-rose-300' },
+              { name: 'SSM', role: 'Change Calendar', color: 'bg-slate-100 border-slate-300' },
             ].map((t) => (
-              <div key={t.name} className={`rounded-2xl border-2 ${t.color} bg-white p-4 text-center shadow-md transition hover:-translate-y-1 hover:shadow-lg`}>
-                {t.icon != null ? <span className="text-2xl block mb-2">{t.icon}</span> : <span className="block mb-2 h-8" />}
-                <p className="text-xs font-black text-slate-900">{t.name}</p>
-                <p className="text-[0.6rem] font-semibold text-slate-700 mt-0.5">{t.role}</p>
+              <div key={t.name} className={`flex shrink-0 items-center gap-2 rounded-xl border-2 ${t.color} bg-white/90 backdrop-blur-sm px-4 py-2.5 shadow-sm transition-all duration-300 ease-out hover:scale-[1.05] hover:shadow-md`}>
+                <span className="text-xs font-bold text-slate-900 whitespace-nowrap">{t.name}</span>
+                <span className="text-[0.65rem] font-medium text-slate-600 whitespace-nowrap hidden sm:inline">— {t.role}</span>
               </div>
             ))}
           </div>
         </div>
       </section>
 
-      <section ref={ctaRef} className="relative z-10 py-20 md:py-28 border-t border-slate-200 bg-white/70 shadow-inner">
-        <div className={`mx-auto max-w-3xl px-4 text-center transition-all duration-700 ${ctaSeen ? 'opacity-100 scale-100' : 'opacity-0 scale-95'}`}>
+      <section ref={ctaRef} className="relative z-10 py-20 md:py-28 border-t border-slate-200/80 glass-strong shadow-inner">
+        <div className={`mx-auto max-w-3xl px-4 text-center transition-all duration-700 ease-out ${ctaSeen ? 'opacity-100 scale-100' : 'opacity-0 scale-95'}`}>
           <span className="inline-block rounded-full border-2 border-amber-500 bg-amber-50 px-4 py-1.5 text-xs font-bold tracking-widest text-amber-800 uppercase mb-6">
             For Hackathon Judges
           </span>
@@ -796,30 +1041,30 @@ function Landing(props: { onStart: () => void; onSkipToDashboard: () => void; on
           </h2>
           <p className="mt-5 text-slate-700 font-semibold text-lg">Onboarding → Dashboard → Live Alerts — a complete proactive AI demo in under 2 minutes.</p>
           <div className="mt-10 flex flex-wrap items-center justify-center gap-3">
-            <button type="button" onClick={onStart} className="inline-flex items-center gap-2 rounded-full bg-emerald-500 px-10 py-4 text-base font-black text-white shadow-lg transition hover:bg-emerald-600 hover:scale-[1.02] active:scale-[0.98]">
+            <button type="button" onClick={onStart} className="inline-flex items-center gap-2 rounded-full bg-emerald-500 px-10 py-4 text-base font-black text-white shadow-lg shadow-emerald-500/30 transition-all duration-300 ease-out hover:bg-emerald-600 hover:scale-[1.04] hover:shadow-xl active:scale-[0.98]">
               Start the Demo →
             </button>
-            <button type="button" onClick={onSkipToDashboard} className="rounded-full border-2 border-slate-300 bg-white px-7 py-4 text-sm font-semibold text-slate-700 hover:bg-slate-50">
+            <button type="button" onClick={onSkipToDashboard} className="rounded-full border-2 border-slate-300 bg-white/90 backdrop-blur-sm px-7 py-4 text-sm font-semibold text-slate-700 transition-all duration-300 ease-out hover:bg-white hover:shadow-lg hover:scale-[1.02]">
               Dashboard →
             </button>
-            <button type="button" onClick={onSkipToDay} className="rounded-full border-2 border-slate-300 bg-white px-7 py-4 text-sm font-semibold text-slate-700 hover:bg-slate-50">
+            <button type="button" onClick={onSkipToDay} className="rounded-full border-2 border-slate-300 bg-white/90 backdrop-blur-sm px-7 py-4 text-sm font-semibold text-slate-700 transition-all duration-300 ease-out hover:bg-white hover:shadow-lg hover:scale-[1.02]">
               Live Alerts →
             </button>
           </div>
-          <div className="mt-12 rounded-2xl border-2 border-amber-400 bg-amber-50 px-6 py-5 text-left max-w-lg mx-auto shadow-md">
+          <div className="mt-12 rounded-2xl border-2 border-amber-400/80 bg-amber-50/90 backdrop-blur-md px-6 py-5 text-left max-w-lg mx-auto shadow-lg transition-all duration-300 hover:shadow-xl">
             <p className="text-xs font-bold uppercase tracking-widest text-amber-800 mb-2">Note for Hackathon Judges</p>
             <p className="text-sm font-semibold text-slate-800"><strong className="text-slate-900">Step 2 (Onboarding)</strong> → then <strong>Dashboard</strong> → <strong>Live Alerts</strong>. End-to-end ~2 min. Backend connect for live AI responses.</p>
           </div>
         </div>
       </section>
 
-      <footer className="relative z-10 bg-slate-100/95 pt-0 pb-5">
+      <footer className="relative z-10 glass pt-0 pb-5 border-t border-white/50">
         {/* Tricolor strip = top edge of footer (orange/amber starts the footer) */}
         <div className="h-1 w-full shrink-0 rounded-none bg-gradient-to-r from-sahayak-amber via-emerald-500 to-sahayak-green" />
         <div className="mx-auto flex max-w-5xl flex-wrap items-center justify-between gap-4 px-4 pt-4 sm:flex-nowrap">
           <div className="min-w-0 flex-1 text-left">
             <p className="text-xs font-semibold text-slate-700">AWS AI for Bharat Hackathon · Professional Track · Retail &amp; Market Intelligence</p>
-            <p className="mt-1 text-xs font-medium text-slate-600">Built for India&apos;s 15M Kirana stores</p>
+            <p className="mt-1 text-xs font-medium text-slate-600">Built for India&apos;s 15M+ MSME stores</p>
           </div>
           <div className="flex shrink-0 items-center gap-2">
             <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" aria-hidden />
@@ -838,6 +1083,7 @@ export type OnboardingImageUpload = (base64: string, mimeType: string) => Promis
 export type OnboardingVoiceMessage = (audioBase64: string, mimeType: string) => Promise<{ reply: string; transcribed_text?: string }>
 
 type ChatOnboardingProps = {
+  demoUsers?: { name: string; username: string; password: string; shopCategory: string }[]
   onContinue: () => void
   /** Wire your bot here. When user sends a message in the phone, this is called with the text; return the bot's reply to show it in the chat. */
   onBotReply?: OnboardingBotReply
@@ -872,18 +1118,33 @@ const onboardingScript: { from: 'user' | 'bot'; text: string }[] = [
 /** Strip emojis and, for language-question messages, the trailing (English, Hindi, ...). Preserve newlines so "User ID" and "Password" stay on separate lines. */
 function cleanBotMessageDisplay(text: string): string {
   const noEmoji = text.replace(/[\u{1F300}-\u{1F9FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{1F600}-\u{1F64F}\u{1F1E0}-\u{1F1FF}\u{FE00}-\u{FE0F}\u{200D}]/gu, '')
-  const collapseSpacesOnly = noEmoji.replace(/[^\S\n]+/g, ' ').trim() // keep newlines, collapse spaces
+  const noMarkdownBold = noEmoji.replace(/\*\*([^*]+)\*\*/g, '$1') // strip **bold** to plain text
+  const collapseSpacesOnly = noMarkdownBold.replace(/[^\S\n]+/g, ' ').trim() // keep newlines, collapse spaces
   const isLanguageQuestion = /language|kis bhasha|bhasha me|boloon|bhasha mein|kis boli|kaun si bhasha|chat karna hai|chahte hain/i.test(collapseSpacesOnly)
   if (isLanguageQuestion)
     return collapseSpacesOnly.replace(/\s*\(English[^)]*\)\s*\.?\s*$/i, '').trim()
   return collapseSpacesOnly
 }
 
-function ChatOnboarding({ onContinue, onBotReply, onImageUpload, onVoiceMessage }: ChatOnboardingProps) {
+function ChatOnboarding({ demoUsers = [], onContinue, onBotReply, onImageUpload, onVoiceMessage }: ChatOnboardingProps) {
   const liveClock = useLiveClock()
   const [step, setStep] = useState(1)
+  const [guideOpen, setGuideOpen] = useState(false)
+  const [guideClosing, setGuideClosing] = useState(false)
+  const guideCloseTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [liveMessages, setLiveMessages] = useState<{ from: 'user' | 'bot'; text: string; time?: string }[]>([])
   const [lastSuggestedActions, setLastSuggestedActions] = useState<string[]>([])
+  const closeGuide = () => {
+    if (guideClosing) return
+    setGuideClosing(true)
+    if (guideCloseTimeoutRef.current) clearTimeout(guideCloseTimeoutRef.current)
+    guideCloseTimeoutRef.current = setTimeout(() => {
+      guideCloseTimeoutRef.current = null
+      setGuideOpen(false)
+      setGuideClosing(false)
+    }, 350)
+  }
+  useEffect(() => () => { if (guideCloseTimeoutRef.current) clearTimeout(guideCloseTimeoutRef.current) }, [])
   const [inputValue, setInputValue] = useState('')
   const [sending, setSending] = useState(false)
   const [recording, setRecording] = useState(false)
@@ -1115,116 +1376,184 @@ function ChatOnboarding({ onContinue, onBotReply, onImageUpload, onVoiceMessage 
   return (
     <main style={{ display: 'flex', flexDirection: 'row', height: 'calc(100vh - 4.5rem)', overflow: 'hidden', position: 'relative', zIndex: 10 }}>
 
-      {/* ══════════════ LEFT PANEL — Bharat light theme ══════════════ */}
-      <section className="relative flex flex-col border-r border-slate-200 bg-gradient-to-br from-amber-50/40 via-white/60 to-emerald-50/40"
-               style={{ width: '54%', padding: '1rem 1.5rem 0.75rem', overflow: 'hidden', flexShrink: 0 }}>
+      {/* ══════════════ LEFT PANEL — Compact card; footer (Open full guide + CTA) always visible ══════════════ */}
+      <section className="relative flex flex-col min-h-0 bg-slate-50/50"
+               style={{ width: '54%', height: '100%', padding: '1.25rem 1.75rem', overflow: 'hidden', flexShrink: 0 }}>
 
-        <div className="pointer-events-none absolute inset-0"
-             style={{ background: 'radial-gradient(ellipse 70% 60% at 0% 30%, rgba(34,197,94,0.12) 0%, transparent 60%)' }} />
-        <div className="pointer-events-none absolute inset-0"
-             style={{ background: 'radial-gradient(ellipse 50% 50% at 100% 0%, rgba(251,191,36,0.08) 0%, transparent 60%)' }} />
-
-        <div className="relative" style={{ marginBottom: '0.55rem', flexShrink: 0 }}>
-          <span className="inline-block rounded-full bg-emerald-500/15 border border-emerald-400/50 px-3 py-1 text-[0.65rem] font-black uppercase tracking-wider text-emerald-700 mb-3">
-            Under 60 seconds
-          </span>
-          <h2 className="text-3xl font-black leading-tight tracking-tight text-slate-900 md:text-[2rem]" style={{ letterSpacing: '-0.03em' }}>
-            Zero forms.<br />
-            <span className="bg-gradient-to-r from-emerald-600 via-emerald-500 to-cyan-600 bg-clip-text text-transparent">
-              Just WhatsApp.
-            </span>
-          </h2>
-          <p className="mt-2 text-sm font-semibold leading-relaxed text-slate-700 max-w-[440px]">
-            A kirana owner onboards via WhatsApp — no app, no form, no store visit.
-          </p>
-        </div>
-
-        {/* ── INFO CARD: Bharat theme — tricolor top, light card ── */}
-        <div
-          className="relative border-2 border-slate-300 bg-white shadow-lg"
-          style={{
-            flex: '1 1 auto',
-            minHeight: 0,
-            display: 'flex',
-            flexDirection: 'column',
-            borderRadius: 16,
-            color: '#0f172a',
-            overflow: 'hidden',
-          }}
-        >
-          <div className="h-1 w-full shrink-0 bg-gradient-to-r from-[#f59e0b] via-emerald-500 to-[#16a34a]" />
-          <div className="flex flex-col gap-4 p-4 sm:p-5">
-            {/* What this page is */}
-            <div className="rounded-xl border-l-4 border-emerald-500 bg-emerald-50/70 px-4 py-3">
-              <p className="text-[0.65rem] font-black uppercase tracking-widest text-emerald-700 mb-1.5">What this page is</p>
-              <p className="text-[0.8rem] font-medium leading-relaxed text-slate-800">
-                <strong className="text-slate-900">Onboarding.</strong> A kirana owner answers 7 questions in a chat — no forms, no app. The phone on the right is a <strong className="text-slate-900">web demo</strong> that looks like WhatsApp. In production, the same chat runs on <strong className="text-slate-900">real WhatsApp</strong> on the store owner&apos;s phone.
-              </p>
-            </div>
-
-            {/* Demo → Production */}
-            <div className="rounded-xl border-2 border-emerald-300 bg-gradient-to-br from-emerald-50 to-cyan-50/50 px-4 py-3 shadow-sm">
-              <p className="text-[0.65rem] font-black uppercase tracking-widest text-emerald-800 mb-1.5">Demo → Production</p>
-              <p className="text-[0.75rem] font-semibold leading-relaxed text-slate-800">
-                <strong className="text-slate-900">Now (demo):</strong> You see a web UI that mimics WhatsApp. <strong className="text-slate-900">Later (production):</strong> Same 7 questions, same AI — store owner chats on WhatsApp. Name &amp; phone from WhatsApp; location from &quot;Send location.&quot;
-              </p>
-            </div>
-
-            {/* Tech stack */}
-            <div className="rounded-xl border-l-4 border-sky-500 bg-sky-50/70 px-4 py-3">
-              <p className="text-[0.65rem] font-black uppercase tracking-widest text-sky-700 mb-2">Tech stack (AWS)</p>
-              <p className="text-[0.72rem] font-medium text-slate-700 mb-2">Receive messages, run AI, store data, create login.</p>
-              <div className="flex flex-wrap gap-2">
-                {['WhatsApp Cloud API', 'Lambda', 'Bedrock', 'DynamoDB', 'Cognito'].map((t) => (
-                  <span key={t} className="rounded-lg border-2 border-sky-300 bg-white px-2.5 py-1.5 text-[0.68rem] font-bold text-sky-700 shadow-sm">
-                    {t}
-                  </span>
-                ))}
+        <div className="flex flex-col min-h-0 h-full rounded-2xl bg-white shadow-xl border border-slate-200/90 overflow-hidden ring-1 ring-slate-200/50">
+          <div className="h-1.5 w-full shrink-0 bg-gradient-to-r from-amber-400 via-emerald-500 to-green-500" />
+          <div className="flex flex-1 flex-col min-h-0 p-5 overflow-hidden">
+            <div className="mb-4 flex items-start gap-3">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-500 to-green-600 text-white shadow-lg shadow-emerald-500/25">
+                <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" /></svg>
+              </div>
+              <div>
+                <p className="text-[0.6rem] font-bold uppercase tracking-[0.2em] text-emerald-600 mb-0.5">For Hackathon Judges</p>
+                <h2 className="text-lg font-black text-slate-900 leading-tight">How to see the full demo</h2>
+                <p className="text-[0.75rem] text-slate-500 mt-1">Dashboard & Live Alerts after sign-in only.</p>
               </div>
             </div>
-
-            {/* Steps (what happens) */}
-            <div className="rounded-xl border-l-4 border-violet-500 bg-violet-50/70 px-4 py-3">
-              <p className="text-[0.65rem] font-black uppercase tracking-widest text-violet-700 mb-2">Steps (what happens)</p>
-              <p className="text-[0.72rem] font-medium text-slate-700 mb-2">AI asks these 7 things in order; then we create dashboard login.</p>
-              <ol className="space-y-1.5 text-[0.78rem] font-semibold text-slate-800">
-                {['Name', 'Shop name', 'Store type (Kirana / General)', 'Location (e.g. Send location in WA)', 'Pincode', 'Aadhar (number or photo)', 'GST (optional)'].map((item, i) => (
-                  <li key={i} className="flex items-center gap-2">
-                    <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-violet-500 text-[0.6rem] font-black text-white">{i + 1}</span>
-                    {item}
-                  </li>
-                ))}
-              </ol>
+            <p className="text-[0.7rem] font-semibold text-slate-600 mb-3">Two paths:</p>
+            <div className="flex gap-3 mb-4">
+              <div className="flex-1 rounded-xl border-2 border-emerald-200/80 bg-gradient-to-br from-emerald-50 to-white p-3.5 shadow-sm">
+                <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-emerald-500 text-[0.7rem] font-black text-white">1</span>
+                <p className="text-[0.75rem] font-bold text-slate-900 mt-2 mb-1">Chat with bot</p>
+                <p className="text-[0.68rem] text-slate-600 leading-snug">7 questions → User ID + Password. <strong>New</strong> account → sign in OK, <strong>dashboard empty</strong>. Onboarding flow only.</p>
+              </div>
+              <div className="flex-1 rounded-xl border-2 border-amber-300/80 bg-gradient-to-br from-amber-50 to-white p-3.5 shadow-sm relative">
+                <span className="absolute top-2 right-2 rounded-full bg-amber-400 px-1.5 py-0.5 text-[0.55rem] font-bold text-amber-900 uppercase">Recommended</span>
+                <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-amber-500 text-[0.7rem] font-black text-white">2</span>
+                <p className="text-[0.75rem] font-bold text-slate-900 mt-2 mb-1">Demo user</p>
+                <p className="text-[0.68rem] text-slate-600 leading-snug">Pick one below → sign in next screen → <strong>full dashboard with data</strong>.</p>
+              </div>
             </div>
-
-            {/* Numbers — stats bar */}
-            <div className="flex flex-wrap items-center gap-4 rounded-xl border-2 border-slate-200 bg-slate-50 px-4 py-3">
-              <span className="text-[0.7rem] font-bold text-slate-600">In numbers:</span>
-              <span className="flex items-baseline gap-1"><span className="text-lg font-black text-emerald-600">47s</span><span className="text-[0.65rem] font-semibold text-slate-600">setup</span></span>
-              <span className="flex items-baseline gap-1"><span className="text-lg font-black text-sky-600">~60s</span><span className="text-[0.65rem] font-semibold text-slate-600">store live</span></span>
-              <span className="flex items-baseline gap-1"><span className="text-lg font-black text-violet-600">7</span><span className="text-[0.65rem] font-semibold text-slate-600">questions</span></span>
+            <p className="text-[0.7rem] font-semibold text-slate-600 mb-2">5 demo users:</p>
+            <div className="grid grid-cols-2 gap-2 min-h-0 flex-1 overflow-y-auto">
+              {demoUsers.map((u) => (
+                <div key={u.username} className="flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50/80 px-3 py-2 shrink-0">
+                  <div className="h-8 w-8 rounded-full bg-gradient-to-br from-emerald-400 to-green-500 flex items-center justify-center text-white text-[0.65rem] font-black shrink-0">{u.name.charAt(0)}</div>
+                  <div className="min-w-0">
+                    <p className="text-[0.75rem] font-bold text-slate-800 truncate">{u.name}</p>
+                    <p className="text-[0.65rem] text-slate-500 truncate">{u.shopCategory}</p>
+                  </div>
+                </div>
+              ))}
             </div>
+          </div>
+
+          <div className="shrink-0 min-h-[7.5rem] p-4 border-t-2 border-slate-200 bg-white bg-gradient-to-r from-slate-50 to-white space-y-3">
+            <button type="button" onClick={() => setGuideOpen(true)}
+              className="w-full flex items-center justify-center gap-2 rounded-xl border-2 border-emerald-300 bg-gradient-to-r from-emerald-50 to-green-50 py-2.5 text-sm font-bold text-emerald-800 hover:from-emerald-100 hover:to-green-100 hover:border-emerald-400 active:scale-[0.99] transition-all shadow-sm">
+              <svg className="h-4 w-4 text-emerald-600 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" /></svg>
+              Open full guide — Tech · Journey · Production
+            </button>
+            {atEnd ? (
+              <button type="button" onClick={onContinue}
+                className="w-full flex items-center justify-center gap-2 rounded-xl font-bold text-white py-3.5 px-4 transition-all duration-300 hover:opacity-95 hover:scale-[1.01] active:scale-[0.99]"
+                style={{ background: 'linear-gradient(135deg, #059669, #0891b2)', fontSize: '0.95rem' }}>
+                Go to Sign In →
+              </button>
+            ) : (
+              <div className="flex items-center gap-3 rounded-xl bg-emerald-50 border-2 border-emerald-200/80 px-4 py-2.5">
+                <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse shrink-0" />
+                <p className="text-[0.8rem] font-semibold text-slate-700">Chat on the right or use a demo user above →</p>
+              </div>
+            )}
           </div>
         </div>
 
-        {/* ── CTA at bottom ── */}
-        <div className="relative" style={{ marginTop: 'auto', paddingTop: '0.5rem', paddingBottom: '0.5rem', flexShrink: 0 }}>
-          {atEnd ? (
-            <button type="button" onClick={onContinue}
-              className="group flex items-center gap-2 rounded-2xl font-black text-white shadow-lg transition hover:scale-[1.02] active:scale-[0.98] border-2 border-emerald-600/50"
-              style={{ background: 'linear-gradient(135deg, #059669, #0891b2)', padding: '0.75rem 1.75rem', fontSize: '0.9rem', boxShadow: '0 8px 28px -4px rgba(5,150,105,0.5)' }}>
-              <span>Open Growth Dashboard</span>
-              <span className="text-lg leading-none">→</span>
-            </button>
-          ) : (
-            <div className="flex items-center gap-2 rounded-xl border-2 border-emerald-200 bg-emerald-50/80 px-3 py-2">
-              <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse shrink-0" />
-              <p className="text-sm font-bold text-slate-700">Live onboarding in progress — watch the chat →</p>
-            </div>
-          )}
-        </div>
-
       </section>
+
+      {/* ══════════════ FULL-PAGE GUIDE (book overlay) — below navbar, opens from right ══════════════ */}
+      {(guideOpen || guideClosing) && createPortal(
+        <div
+          className="fixed left-0 right-0 z-[200] flex justify-end bg-slate-900/60 backdrop-blur-sm transition-opacity duration-300"
+          style={{ top: '4rem', height: 'calc(100vh - 4rem)' }}
+          onClick={closeGuide}
+          role="dialog"
+          aria-modal="true"
+          aria-label="Full guide"
+        >
+          <div
+            className={`flex flex-col h-full w-full max-w-3xl md:max-w-5xl bg-white shadow-2xl border-l-2 border-slate-200 ${guideClosing ? 'guide-book-leave' : 'guide-book-enter'}`}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="shrink-0 border-b border-slate-200 bg-white">
+              <div className="h-1 w-full bg-gradient-to-r from-amber-400 via-emerald-500 to-green-500" />
+              <div className="flex items-center justify-between px-6 py-4">
+                <h2 className="text-lg font-black text-slate-900">AI Sahayak — Judge Guide &amp; Tech</h2>
+                <button
+                  type="button"
+                  onClick={closeGuide}
+                  className="rounded-full p-2 hover:bg-slate-100 transition"
+                  aria-label="Close"
+                >
+                  <svg className="w-5 h-5 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                </button>
+              </div>
+            </div>
+            <div className="flex-1 overflow-y-auto p-6 md:p-8 bg-slate-50/30">
+              <div className="grid md:grid-cols-2 gap-6 md:gap-8">
+                {/* Left column — For Judges (single card with sections) */}
+                <div className="rounded-2xl border-2 border-slate-200 bg-white shadow-lg shadow-slate-200/50 overflow-hidden">
+                  <div className="px-5 py-4 border-b border-slate-200 bg-gradient-to-r from-emerald-50 to-white">
+                    <h3 className="text-[0.65rem] font-bold uppercase tracking-widest text-emerald-600 mb-0.5">For Judges</h3>
+                    <h4 className="text-base font-black text-slate-900">Two ways to see the demo</h4>
+                  </div>
+                  <div className="p-5 space-y-5">
+                    <div className="rounded-xl border-2 border-emerald-200 bg-emerald-50/50 p-4">
+                      <p className="text-xs font-black text-emerald-800 mb-2">1. Chat with the bot</p>
+                      <p className="text-sm text-slate-700 leading-relaxed">Answer 7 questions (language, name, shop name, type, location, pincode, Aadhar, GST). Bot returns User ID + Password for a <strong>new</strong> account. You can sign in, but that account has no pre-loaded data — <strong>dashboard will be empty</strong>. Use this path only to experience the onboarding flow.</p>
+                    </div>
+                    <div className="rounded-xl border-2 border-amber-200 bg-amber-50/50 p-4">
+                      <span className="inline-block rounded-full bg-amber-400 px-2 py-0.5 text-[0.6rem] font-bold text-amber-900 uppercase mb-2">Recommended</span>
+                      <p className="text-xs font-black text-amber-900 mb-2">2. Use a demo user</p>
+                      <p className="text-sm text-slate-700 leading-relaxed mb-4">Pick one of the 5 pre-existing users and sign in on the next screen — you’ll see <strong>that user’s full dashboard</strong> with sales, forecast, and demo data.</p>
+                      <ul className="grid grid-cols-1 gap-2 text-sm">
+                        {demoUsers.map((u) => (
+                          <li key={u.username} className="flex justify-between items-center rounded-lg bg-white/80 px-3 py-2 border border-slate-200">
+                            <span className="font-semibold text-slate-800">{u.name}</span>
+                            <span className="text-slate-600 text-xs">{u.shopCategory}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                    <div className="rounded-xl border border-slate-200 bg-slate-50/80 p-4">
+                      <h5 className="text-xs font-bold text-slate-800 mb-3">Your journey</h5>
+                      <ol className="space-y-2 text-sm text-slate-700">
+                        <li><span className="font-bold text-emerald-600">1.</span> Onboarding (this page)</li>
+                        <li><span className="font-bold text-emerald-600">2.</span> Sign in (demo user → full dashboard; chat-generated → empty)</li>
+                        <li><span className="font-bold text-emerald-600">3.</span> Dashboard (pricing, forecast, what-if)</li>
+                        <li><span className="font-bold text-amber-600">4.</span> Live Alerts (from nav)</li>
+                      </ol>
+                    </div>
+                    <div className="rounded-xl border border-violet-200 bg-violet-50/50 p-4">
+                      <h5 className="text-xs font-bold text-slate-800 mb-2">End goal: WhatsApp-only for Raju</h5>
+                      <p className="text-sm text-slate-700 leading-relaxed">In production, the shopkeeper never leaves WhatsApp — onboarding, Khatabook photo upload, daily reports, instant queries. This dashboard is the judge&apos;s view into that data.</p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Right column — Tech & Production (single card with sections) */}
+                <div className="rounded-2xl border-2 border-slate-200 bg-white shadow-lg shadow-slate-200/50 overflow-hidden">
+                  <div className="px-5 py-4 border-b border-slate-200 bg-gradient-to-r from-slate-50 to-white">
+                    <h3 className="text-[0.65rem] font-bold uppercase tracking-widest text-slate-500 mb-0.5">Tech &amp; Production</h3>
+                    <h4 className="text-base font-black text-slate-900">Stack, roadmap, judge view</h4>
+                  </div>
+                  <div className="p-5 space-y-5">
+                    <div className="rounded-xl border border-slate-200 bg-slate-50/60 p-4">
+                      <h5 className="text-xs font-bold text-slate-800 mb-3">This demo</h5>
+                      <div className="flex flex-wrap gap-2 mb-3">
+                        {['React', 'Vite', 'Tailwind', 'Lambda', 'Bedrock', 'DynamoDB', 'Cognito', 'S3', 'EventBridge', 'LangGraph', 'Transcribe', 'Polly'].map((t) => (
+                          <span key={t} className="rounded-lg bg-white border border-slate-200 px-2.5 py-1 text-xs font-semibold text-slate-700">{t}</span>
+                        ))}
+                      </div>
+                      <p className="text-sm text-slate-600">Web chat mimics WhatsApp flow; same backend ready for WhatsApp Cloud API.</p>
+                    </div>
+                    <div className="rounded-xl border-2 border-emerald-200 bg-emerald-50/50 p-4">
+                      <h5 className="text-xs font-bold text-emerald-800 mb-3">Production (what we&apos;ll use)</h5>
+                      <ul className="space-y-2 text-sm text-slate-700">
+                        <li><strong>WhatsApp Cloud API</strong> — real user chat</li>
+                        <li><strong>Amazon Textract / OCR</strong> — Khatabook & bill photos</li>
+                        <li><strong>Bedrock</strong> — vision + LLM, Hinglish</li>
+                        <li><strong>SageMaker</strong> — demand forecast (e.g. DeepAR)</li>
+                        <li><strong>DynamoDB / S3</strong> — inventory, user state</li>
+                        <li><strong>EventBridge + Change Calendar</strong> — proactive alerts</li>
+                        <li><strong>Lambda</strong> — serverless orchestration</li>
+                      </ul>
+                    </div>
+                    <div className="rounded-xl border border-slate-200 bg-slate-50/80 p-4">
+                      <h5 className="text-xs font-bold text-slate-800 mb-2">What you see as a judge</h5>
+                      <p className="text-sm text-slate-700 leading-relaxed mb-2">After sign-in you see that user&apos;s dashboard with <strong>prefilled demo data</strong> (e.g. previous year, daily sales) and SageMaker-style charts. No live WhatsApp or photo upload in this demo — that&apos;s future scope.</p>
+                      <p className="text-sm text-slate-600 leading-relaxed">Future: when Raju sends a photo on WhatsApp, AI (Textract + Bedrock) would extract data and the graph here would update in real time.</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      , document.body)}
 
       {/* ══════════════ RIGHT PANEL — Bharat theme, phone ══════════════ */}
       <section className="bg-gradient-to-bl from-emerald-50/30 via-white/20 to-amber-50/25" style={{ flex: '1 1 0%', display: 'grid', placeItems: 'center', overflow: 'hidden', position: 'relative', zIndex: 10 }}>
@@ -1250,7 +1579,7 @@ function ChatOnboarding({ onContinue, onBotReply, onImageUpload, onVoiceMessage 
         {/* Live badge — Bharat, bold */}
         <div className="absolute bottom-3 left-3 z-10 flex items-center gap-2 rounded-xl border-2 border-slate-300 bg-white px-3 py-2 shadow-xl">
           <span className="h-2.5 w-2.5 rounded-full bg-emerald-500 animate-pulse" />
-          <span className="text-[0.7rem] font-black text-slate-800 uppercase tracking-wider">Live Demo · Raju</span>
+          <span className="text-[0.7rem] font-black text-slate-800 uppercase tracking-wider">Live Demo</span>
         </div>
 
         {/* ── PHONE — fills the right panel height ── */}
@@ -1290,10 +1619,10 @@ function ChatOnboarding({ onContinue, onBotReply, onImageUpload, onVoiceMessage 
                 <button type="button" style={{ color: '#fff', padding: '0 2px', flexShrink: 0, background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 1 }} aria-label="Back">
                   <svg style={{ width: 16, height: 16 }} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M15 19l-7-7 7-7" /></svg>
                 </button>
-                {/* Avatar */}
+                {/* Avatar — AI Sahayak logo */}
                 <div style={{ position: 'relative', flexShrink: 0 }}>
-                  <div style={{ width: 32, height: 32, borderRadius: '50%', border: '2px solid rgba(255,255,255,0.3)', background: '#128c7e', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    <span style={{ fontSize: '0.75rem', fontWeight: 800, color: '#fff' }}>AI</span>
+                  <div style={{ width: 32, height: 32, borderRadius: '50%', border: '2px solid rgba(255,255,255,0.3)', background: '#fff', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <img src="/Generated_image.png" alt="AI Sahayak" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
                   </div>
                   <span style={{ position: 'absolute', bottom: 0, right: 0, width: 9, height: 9, borderRadius: '50%', background: '#4ade80', border: '1.5px solid #075e54' }} />
                 </div>
@@ -1361,7 +1690,12 @@ function ChatOnboarding({ onContinue, onBotReply, onImageUpload, onVoiceMessage 
                               )}
                             </button>
                           )}
-                          {msg.from === 'bot' && (msg.text.toLowerCase().includes('location') || msg.text.toLowerCase().includes('pincode')) && (
+                          {msg.from === 'bot' && (() => {
+                            const t = msg.text.toLowerCase()
+                            const isAskingForLocation = (t.includes('location') || t.includes('pincode')) &&
+                              !/I know the following|your name:|\*\*location\*\*|^location:\s*\S|store name:/mi.test(msg.text)
+                            return isAskingForLocation
+                          })() && (
                             <button type="button"
                               onClick={() => setLiveMessages(prev => [...prev, { from: 'user', text: 'Rajwada, Indore, MP — Location shared!', time: nowTime() }])}
                               style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5, marginTop: 6, width: '100%', background: '#f0fdf4', border: '1px solid #86efac', borderRadius: 6, padding: '6px 8px', cursor: 'pointer', color: '#15803d' }}>
@@ -1369,7 +1703,14 @@ function ChatOnboarding({ onContinue, onBotReply, onImageUpload, onVoiceMessage 
                               <span style={{ fontSize: '0.7rem', fontWeight: 700 }}>Send location</span>
                             </button>
                           )}
-                          {msg.from === 'bot' && msg.text.toLowerCase().includes('aadhar') && (
+                          {msg.from === 'bot' && (() => {
+                            const t = msg.text.toLowerCase()
+                            const isSummaryOrHasAadhar = /I know the following|here'?s the information we have|information we have about you|store owner.*store type|aadhar number:\s*\d|aadhar.*\d{12}|gst status/i.test(msg.text)
+                            const isAskingForAadhar = t.includes('aadhar') &&
+                              !/gst number|do you have a gst|do you have gst/i.test(msg.text) &&
+                              !isSummaryOrHasAadhar
+                            return isAskingForAadhar
+                          })() && (
                             <button type="button" onClick={() => docInputRef.current?.click()}
                               style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5, marginTop: 6, width: '100%', background: '#faf5ff', border: '1px solid #d8b4fe', borderRadius: 6, padding: '6px 8px', cursor: 'pointer', color: '#7c3aed' }}>
                               <svg style={{ width: 12, height: 12, flexShrink: 0 }} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" /></svg>
@@ -1473,436 +1814,5 @@ function ChatOnboarding({ onContinue, onBotReply, onImageUpload, onVoiceMessage 
   )
 }
 
-type RajuDayProps = {
-  welcomeName?: string | null
-  onBackToDashboard: () => void
-}
-
-type DayMessage = {
-  from: 'user' | 'bot' | 'alert'
-  text: string
-  time?: string
-  alertId?: string
-  event_confidence_score?: number  // 0-100 from Lambda
-}
-
-// Start with empty chat so it looks real; no prefilled questions or demo alerts.
-// Real alerts from Lambda will appear when they're sent (poll). User types anything and the bot replies.
-const INITIAL_LIVE_MESSAGES: DayMessage[] = []
-
-function RajuDay({ welcomeName, onBackToDashboard: _onBackToDashboard }: RajuDayProps) {
-  const liveClock = useLiveClock()
-  const displayName = formatWelcomeName(welcomeName)
-  const retailerKey = (welcomeName || '').toString().trim().toLowerCase() || 'raju'
-  const [welcome, setWelcome] = useState<{ main: string; sub: string } | null>(() =>
-    displayName ? getWelcomeMessage(displayName, false) : null
-  )
-  useEffect(() => {
-    if (displayName && !welcome) setWelcome(getWelcomeMessage(displayName, false))
-  }, [displayName, welcome])
-
-  const agentApiBase = (import.meta as any).env?.VITE_AGENT_API_BASE || 'http://localhost:8000'
-  const [messages, setMessages] = useState<DayMessage[]>(INITIAL_LIVE_MESSAGES)
-  const [input, setInput] = useState('')
-  const [sending, setSending] = useState(false)
-  const messagesEndRef = useRef<HTMLDivElement>(null)
-  const seenAlertIdsRef = useRef<Set<string>>(new Set())
-
-  // Restore chat history for this retailer from sessionStorage so messages
-  // are not lost when navigating between Dashboard and Live Alerts.
-  useEffect(() => {
-    if (typeof window === 'undefined') return
-    const key = `ai_sahayak_live_messages_${retailerKey}`
-    try {
-      const raw = window.sessionStorage.getItem(key)
-      if (raw) {
-        const parsed = JSON.parse(raw)
-        if (Array.isArray(parsed)) {
-          setMessages(parsed)
-        }
-      }
-    } catch {
-      // ignore malformed cache
-    }
-  }, [retailerKey])
-
-  // Persist messages whenever they change so the history survives view switches.
-  useEffect(() => {
-    if (typeof window === 'undefined') return
-    const key = `ai_sahayak_live_messages_${retailerKey}`
-    try {
-      window.sessionStorage.setItem(key, JSON.stringify(messages))
-    } catch {
-      // ignore quota errors
-    }
-  }, [messages, retailerKey])
-
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [messages])
-
-  // Poll backend for Lambda-sent alerts (Step 4: deliver into WP UI)
-  useEffect(() => {
-    const userId = retailerKey
-    const fetchAlerts = async () => {
-      try {
-        const res = await fetch(`${agentApiBase}/v1/alerts/for-user?user_id=${encodeURIComponent(userId)}`)
-        if (!res.ok) return
-        const data = await res.json()
-        const alerts = data.alerts || []
-        if (alerts.length === 0) return
-        setMessages((prev) => {
-          const seen = seenAlertIdsRef.current
-          const toAdd: DayMessage[] = []
-          for (const a of alerts) {
-            if (a.id && !seen.has(a.id)) {
-              seen.add(a.id)
-              const timeStr = a.time ? new Date(a.time).toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit', hour12: true }) : ''
-              toAdd.push({ from: 'alert', text: a.text, time: timeStr, alertId: a.id, event_confidence_score: a.event_confidence_score })
-            }
-          }
-          if (toAdd.length === 0) return prev
-          return [...prev, ...toAdd]
-        })
-      } catch {
-        // ignore
-      }
-    }
-    fetchAlerts()
-    const t = setInterval(fetchAlerts, 30000)
-    return () => clearInterval(t)
-  }, [agentApiBase, retailerKey])
-
-  async function sendMessage(overrideText?: string) {
-    const text = (overrideText ?? input.trim()).trim()
-    if (!text || sending) return
-    if (!overrideText) setInput('')
-    setMessages((prev) => [...prev, { from: 'user', text }])
-    setSending(true)
-    try {
-      const response = await fetch(`${agentApiBase}/v1/webhook/incoming`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          user_id: retailerKey,
-          text,
-          platform: 'web',
-          session_id: `day-session-${retailerKey}`,
-        }),
-      })
-      if (!response.ok) throw new Error('Bot unavailable')
-      const data = await response.json()
-      const reply = data.reply || data.message || 'No reply from bot.'
-      setMessages((prev) => [...prev, { from: 'bot', text: reply }])
-    } catch {
-      setMessages((prev) => [...prev, { from: 'bot', text: 'Bot is unavailable right now. Please try again.' }])
-    } finally {
-      setSending(false)
-    }
-  }
-
-  return (
-    <main style={{ display: 'flex', flexDirection: 'row', height: 'calc(100vh - 4.5rem)', overflow: 'hidden', position: 'relative', zIndex: 10 }}>
-
-      {/* ══════════════ LEFT: Timeline — Bharat light theme ══════════════ */}
-      <section className="border-r border-slate-200" style={{ width: '52%', display: 'flex', flexDirection: 'column', overflow: 'hidden', flexShrink: 0 }}>
-
-        <div className="border-b border-slate-200 bg-white/80 backdrop-blur-sm" style={{ padding: '1rem 1.75rem 0.75rem', flexShrink: 0 }}>
-          <h2 style={{ fontSize: '1.6rem', fontWeight: 900, color: '#0f172a', lineHeight: 1.0, letterSpacing: '-0.02em', margin: 0 }}>
-            Raju's day —{' '}
-            <span style={{ background: 'linear-gradient(135deg,#f59e0b,#ea580c)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>powered by AI</span>
-          </h2>
-          <p className="text-slate-600" style={{ fontSize: '0.75rem', marginTop: 4 }}>EventBridge at a time you set · SageMaker forecasts · Bedrock explains in Hinglish</p>
-        </div>
-
-        {/* Scrollable timeline */}
-        <div style={{ flex: 1, overflowY: 'auto', padding: '0.75rem 1.75rem 1rem', scrollbarWidth: 'none' }}>
-
-          {/* TODAY'S STATS STRIP */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8, marginBottom: 14 }}>
-            {[
-              { label: 'Today\'s Sales', value: '₹15,200', delta: '+12%', color: '#34d399' },
-              { label: 'Items Low Stock', value: '3 items', delta: 'reorder now', color: '#f87171' },
-              { label: 'Festival Alert', value: 'Holi', delta: '4 din baad', color: '#fbbf24' },
-              { label: 'AI Confidence', value: '92%', delta: 'demand spike', color: '#818cf8' },
-            ].map(s => (
-              <div key={s.label} style={{ background: `${s.color}08`, border: `1px solid ${s.color}20`, borderRadius: 10, padding: '8px 10px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 3 }}>
-                  <span style={{ fontSize: '0.55rem', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.06em' }}>{s.label}</span>
-                </div>
-                <p style={{ fontSize: '0.95rem', fontWeight: 900, color: s.color, lineHeight: 1 }}>{s.value}</p>
-                <p style={{ fontSize: '0.55rem', color: '#64748b', marginTop: 2 }}>{s.delta}</p>
-              </div>
-            ))}
-          </div>
-
-          {/* TIMELINE HEADING */}
-          <p style={{ fontSize: '0.6rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.15em', color: '#475569', marginBottom: 10 }}>
-            Today's Flow — How Raju uses AI Sahayak
-          </p>
-
-          {/* TIMELINE EVENTS */}
-          {([
-            {
-              time: '8:59 AM',
-              icon: 'E',
-              iconBg: '#0891b2',
-              title: 'EventBridge triggers',
-              sub: 'AWS EventBridge runs daily at the time you chose in chat',
-              badge: 'EventBridge',
-              badgeColor: '#38bdf8',
-              detail: 'Scheduled rule checks FESTIVAL_CALENDAR + sales data from DynamoDB',
-              alert: null,
-            },
-            {
-              time: '9:00 AM',
-              icon: 'F',
-              iconBg: '#d97706',
-              title: 'Festival Alert — Holi in 4 days!',
-              sub: 'SageMaker predicts 3.2x demand spike for color, ghee, sweets',
-              badge: 'SageMaker',
-              badgeColor: '#a78bfa',
-              detail: null,
-              alert: 'Holi 4 din baad! Gulal, Ghee aur Shakkar ka stock check karo. SageMaker confidence: 92%',
-            },
-            {
-              time: '9:01 AM',
-              icon: 'S',
-              iconBg: '#059669',
-              title: 'Daily Sales Summary',
-              sub: 'Bedrock summarizes yesterday\'s performance in Hinglish',
-              badge: 'Bedrock LLM',
-              badgeColor: '#34d399',
-              detail: null,
-              alert: 'Kal ki sales: ₹15,200 (12% zyada!) Top item: Amul Ghee 500g. Low stock: Tata Salt, Parle-G, Ariel.',
-            },
-            {
-              time: '9:05 AM',
-              icon: 'W',
-              iconBg: '#db2777',
-              title: 'Wedding Season Nudge',
-              sub: 'Location-based alert: 3 weddings this week near Rajwada',
-              badge: 'Google Maps API',
-              badgeColor: '#f472b6',
-              detail: null,
-              alert: 'Wedding season Indore mein! Dry fruits, Mithai, Gifting items ka stock ready karo. 3 shaadiyaan is hafte.',
-            },
-            {
-              time: '10:30 AM',
-              icon: 'C',
-              iconBg: '#7c3aed',
-              title: 'Raju asks the AI',
-              sub: 'Raju types: "Gulal kitna mangwau?" — AI replies with forecast',
-              badge: 'Bedrock Chat',
-              badgeColor: '#818cf8',
-              detail: '"Raju Bhai, 25-30 kg gulal lo. Last Holi mein 22 kg bika tha, is baar 3.2x spike expected hai!"',
-              alert: null,
-            },
-            {
-              time: '12:00 PM',
-              icon: 'R',
-              iconBg: '#ea580c',
-              title: 'Reorder Triggered',
-              sub: 'Raju confirms reorder — Lambda updates DynamoDB inventory',
-              badge: 'Lambda + DynamoDB',
-              badgeColor: '#fbbf24',
-              detail: 'Tata Salt (50 pkt), Parle-G (10 box), Ariel (20 kg) — order placed via WhatsApp',
-              alert: null,
-            },
-            {
-              time: '6:00 PM',
-              icon: 'P',
-              iconBg: '#0f766e',
-              title: 'Evening Check-in',
-              sub: 'Raju asks: "Aaj kitna hua?" — AI gives live P&L summary',
-              badge: 'Bedrock',
-              badgeColor: '#34d399',
-              detail: '"₹15,200 aaj. Profit ~₹2,800 (18.4%). Kal Holi preps ka expect karo 2x traffic!"',
-              alert: null,
-            },
-          ] as Array<{time:string;icon:string;iconBg:string;title:string;sub:string;badge:string;badgeColor:string;detail:string|null;alert:string|null}>).map((ev, i) => (
-            <div key={i} style={{ display: 'flex', gap: 10, marginBottom: 14, position: 'relative' }}>
-              {/* Vertical line */}
-              {i < 6 && <div className="bg-slate-200" style={{ position: 'absolute', left: 14, top: 30, width: 2, height: 'calc(100% + 2px)' }} />}
-              {/* Icon */}
-              <div style={{ width: 28, height: 28, borderRadius: '50%', background: ev.iconBg, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.75rem', flexShrink: 0, zIndex: 1, boxShadow: `0 0 10px ${ev.iconBg}50` }}>{ev.icon}</div>
-              {/* Content */}
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 7, flexWrap: 'wrap', marginBottom: 2 }}>
-                  <span style={{ fontSize: '0.58rem', color: '#475569', fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>{ev.time}</span>
-                  <span className="text-slate-800" style={{ fontSize: '0.75rem', fontWeight: 700 }}>{ev.title}</span>
-                  <span style={{ fontSize: '0.55rem', fontWeight: 700, color: ev.badgeColor, background: `${ev.badgeColor}15`, border: `1px solid ${ev.badgeColor}30`, borderRadius: 20, padding: '1px 7px' }}>{ev.badge}</span>
-                </div>
-                <p style={{ fontSize: '0.67rem', color: '#64748b', lineHeight: 1.35, marginBottom: ev.alert || ev.detail ? 5 : 0 }}>{ev.sub}</p>
-                {ev.alert && (
-                  <div style={{ background: 'rgba(251,191,36,0.08)', border: '1px solid rgba(251,191,36,0.2)', borderRadius: 8, padding: '6px 10px', fontSize: '0.7rem', color: '#fde68a', lineHeight: 1.4 }}>
-                    <em>{ev.alert}</em>
-                  </div>
-                )}
-                {ev.detail && (
-                  <div style={{ background: 'rgba(99,102,241,0.07)', border: '1px solid rgba(99,102,241,0.15)', borderRadius: 8, padding: '6px 10px', fontSize: '0.68rem', color: '#c7d2fe', lineHeight: 1.4 }}>
-                    {ev.detail}
-                  </div>
-                )}
-              </div>
-            </div>
-          ))}
-
-          {/* AWS FLOW DIAGRAM */}
-          <div className="bg-white/80 border border-slate-200" style={{ marginTop: 4, borderRadius: 12, padding: '10px 12px' }}>
-            <p style={{ fontSize: '0.58rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.12em', color: '#475569', marginBottom: 8 }}>AWS proactive flow</p>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap' }}>
-              {[
-                { label: 'EventBridge', color: '#38bdf8', icon: 'EB' },
-                { label: '→', color: '#334155', icon: '' },
-                { label: 'Lambda', color: '#34d399', icon: 'λ' },
-                { label: '→', color: '#334155', icon: '' },
-                { label: 'SageMaker', color: '#a78bfa', icon: 'SM' },
-                { label: '→', color: '#334155', icon: '' },
-                { label: 'Bedrock', color: '#fbbf24', icon: 'B' },
-                { label: '→', color: '#334155', icon: '' },
-                { label: 'WhatsApp', color: '#34d399', icon: 'WA' },
-              ].map((s, i) => (
-                s.label === '→'
-                  ? <span key={i} style={{ color: '#334155', fontSize: '0.7rem' }}>→</span>
-                  : <span key={i} style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: '0.62rem', fontWeight: 700, color: s.color, background: `${s.color}10`, border: `1px solid ${s.color}25`, borderRadius: 20, padding: '2px 8px' }}>{s.icon} {s.label}</span>
-              ))}
-            </div>
-          </div>
-
-        </div>
-      </section>
-
-      {/* ══════════════ RIGHT: Live WhatsApp Feed — Bharat theme shows through ══════════════ */}
-      <section style={{ flex: '1 1 0%', display: 'grid', placeItems: 'center', overflow: 'hidden', position: 'relative', zIndex: 10 }}>
-
-        {/* Glow */}
-        <div style={{ pointerEvents: 'none', position: 'absolute', inset: 0, background: 'radial-gradient(ellipse 70% 70% at 55% 50%, rgba(251,191,36,0.05) 0%, transparent 65%)' }} />
-
-        {/* Phone */}
-        <div style={{ position: 'relative', width: 'min(290px, 36vw)', height: 'min(560px, calc(100vh - 4.5rem - 1rem))', flexShrink: 0, zIndex: 20 }}>
-          {/* Side buttons */}
-          <div style={{ position: 'absolute', left: -4, top: '18%', width: 3, height: 32, background: '#334155', borderRadius: '2px 0 0 2px' }} />
-          <div style={{ position: 'absolute', left: -4, top: '26%', width: 3, height: 22, background: '#334155', borderRadius: '2px 0 0 2px' }} />
-          <div style={{ position: 'absolute', right: -4, top: '22%', width: 3, height: 44, background: '#334155', borderRadius: '0 2px 2px 0' }} />
-
-          {/* Shell */}
-          <div style={{ borderRadius: '2.4rem', border: '6px solid #1a1a1a', background: '#fff', overflow: 'hidden', isolation: 'isolate', zIndex: 20, height: '100%', display: 'flex', flexDirection: 'column', boxShadow: '0 0 0 1px rgba(0,0,0,0.15), 0 32px 64px -8px rgba(0,0,0,0.85), 0 0 40px -8px rgba(251,191,36,0.12), inset 0 1px 0 rgba(255,255,255,0.3)' }}>
-
-            {/* Dynamic island */}
-            <div style={{ position: 'absolute', zIndex: 30, top: 8, left: '50%', transform: 'translateX(-50%)', width: 66, height: 18, borderRadius: 18, background: '#000' }} />
-
-            {/* Status bar — live IST, same as Onboarding */}
-            <div style={{ background: '#075e54', padding: '10px 18px 4px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
-              <span style={{ color: '#fff', fontSize: '0.62rem', fontWeight: 700 }}>{formatISTStatusTime(liveClock)}</span>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                <span style={{ display: 'flex', alignItems: 'flex-end', gap: '2px' }}>
-                  {[3,5,7,9].map(h => <span key={h} style={{ width: 2, height: h, background: '#fff', borderRadius: 1 }} />)}
-                </span>
-                <svg style={{ width: 10, height: 10, color: '#fff' }} fill="currentColor" viewBox="0 0 24 24"><path d="M1 9l2 2c4.97-4.97 13.03-4.97 18 0l2-2C16.93 2.93 7.08 2.93 1 9zm8 8l3 3 3-3a4.237 4.237 0 00-6 0zm-4-4l2 2a7.074 7.074 0 0110 0l2-2C15.14 9.14 8.87 9.14 5 13z"/></svg>
-                <span style={{ display: 'inline-flex', border: '1.5px solid rgba(255,255,255,0.7)', borderRadius: 3, padding: '1px 2px' }}>
-                  <span style={{ width: 12, height: 5, background: '#4ade80', borderRadius: 1 }} />
-                </span>
-              </div>
-            </div>
-
-            {/* App bar */}
-            <div style={{ background: '#075e54', padding: '5px 10px 9px', display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
-              <button type="button" style={{ color: '#fff', background: 'none', border: 'none', cursor: 'pointer' }} aria-label="Back">
-                <svg style={{ width: 16, height: 16 }} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M15 19l-7-7 7-7" /></svg>
-              </button>
-              <div style={{ width: 32, height: 32, borderRadius: '50%', background: '#128c7e', border: '2px solid rgba(255,255,255,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.75rem', fontWeight: 800, color: '#fff', flexShrink: 0 }}>AI</div>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <p style={{ fontSize: '0.88rem', fontWeight: 700, color: '#fff', lineHeight: 1.1 }}>AI Sahayak</p>
-              </div>
-              <div style={{ display: 'flex', gap: 2 }}>
-                <button type="button" style={{ color: '#fff', background: 'none', border: 'none', cursor: 'pointer', padding: 4 }} aria-label="Video">
-                  <svg style={{ width: 15, height: 15 }} fill="currentColor" viewBox="0 0 24 24"><path d="M17 10.5V7c0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.55 0 1-.45 1-1v-3.5l4 4v-11l-4 4z"/></svg>
-                </button>
-                <button type="button" style={{ color: '#fff', background: 'none', border: 'none', cursor: 'pointer', padding: 4 }} aria-label="Call">
-                  <svg style={{ width: 15, height: 15 }} fill="currentColor" viewBox="0 0 24 24"><path d="M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z"/></svg>
-                </button>
-              </div>
-            </div>
-
-            {/* Chat */}
-            <div style={{ flex: 1, overflowY: 'auto', background: '#efeae2', backgroundImage: "url(\"data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23000000' fill-opacity='0.03'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E\")", padding: '8px 10px', display: 'flex', flexDirection: 'column', gap: 6 }}>
-
-              {/* Date pill — same format as Onboarding */}
-              <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 2 }}>
-                <span style={{ fontSize: '0.55rem', color: '#667781', background: '#d4d0c8', padding: '2px 10px', borderRadius: 8, fontWeight: 500 }}>TODAY · {getTodayDatePill()}</span>
-              </div>
-
-              {messages.map((msg, i) => (
-                <div key={i} style={{ display: 'flex', justifyContent: msg.from === 'user' ? 'flex-end' : 'flex-start' }}>
-                  {/* Alert messages — full-width amber banner */}
-                  {msg.from === 'alert' ? (
-                    <div style={{ width: '94%', background: '#fff9e6', border: '1px solid #fcd34d', borderRadius: 10, padding: '7px 10px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: 3 }}>
-                        <span style={{ fontSize: '0.55rem', fontWeight: 700, color: '#92400e', background: '#fde68a', borderRadius: 20, padding: '1px 7px', textTransform: 'uppercase', letterSpacing: '0.06em' }}>AI Alert</span>
-                        <span style={{ fontSize: '0.5rem', color: '#92400e', opacity: 0.7 }}>{msg.time}</span>
-                        {msg.event_confidence_score != null && (
-                          <span style={{ fontSize: '0.5rem', fontWeight: 700, color: '#b45309', marginLeft: 'auto' }}>{msg.event_confidence_score}% confidence</span>
-                        )}
-                      </div>
-                      <p style={{ fontSize: '0.72rem', color: '#111b21', lineHeight: 1.4, whiteSpace: 'pre-wrap' }}>{msg.text}</p>
-                    </div>
-                  ) : (
-                    <div style={{ maxWidth: '86%', borderRadius: msg.from === 'user' ? '8px 8px 2px 8px' : '8px 8px 8px 2px', padding: '6px 9px 4px', background: msg.from === 'user' ? '#d9fdd3' : '#ffffff', color: '#111b21', fontSize: '0.73rem', lineHeight: 1.42, wordBreak: 'break-word' as const, boxShadow: '0 1px 2px rgba(0,0,0,0.12)' }}>
-                      <span style={{ display: 'block', whiteSpace: 'pre-wrap' }}>{msg.text}</span>
-                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 3, marginTop: 3 }}>
-                        <span style={{ fontSize: '0.5rem', color: '#667781' }}>{msg.time ?? formatISTTime(new Date())}</span>
-                        {msg.from === 'user' && <svg style={{ width: 12, height: 12, color: '#53bdeb' }} fill="currentColor" viewBox="0 0 24 24"><path d="M18 7l-1.41-1.41-6.34 6.34 1.41 1.41L18 7zm4.24-1.41L11.66 16.17 7.48 12l-1.41 1.41L11.66 19l12-12-1.42-1.41zM.41 13.41L6 19l1.41-1.41L1.83 12 .41 13.41z"/></svg>}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              ))}
-
-              {sending && (
-                <div style={{ display: 'flex', justifyContent: 'flex-start' }}>
-                  <div style={{ background: '#fff', borderRadius: '8px 8px 8px 2px', padding: '8px 14px', display: 'flex', gap: 4, alignItems: 'center', boxShadow: '0 1px 2px rgba(0,0,0,0.12)' }}>
-                    {[0,150,300].map(d => <span key={d} className="rounded-full animate-bounce" style={{ width: 5, height: 5, background: '#8696a0', animationDelay: `${d}ms`, display: 'inline-block' }} />)}
-                  </div>
-                </div>
-              )}
-              <div ref={messagesEndRef} />
-            </div>
-
-            {/* Input bar */}
-            <div style={{ background: '#f0f2f5', borderTop: '1px solid #e9edef', padding: '7px 8px', flexShrink: 0, display: 'flex', alignItems: 'center', gap: 6 }}>
-              <button type="button" style={{ color: '#8696a0', background: 'none', border: 'none', cursor: 'pointer', padding: 2 }} aria-label="Emoji">
-                <svg style={{ width: 20, height: 20 }} fill="currentColor" viewBox="0 0 24 24"><path d="M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zM12 20c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8zm3.5-9c.83 0 1.5-.67 1.5-1.5S16.33 8 15.5 8 14 8.67 14 9.5s.67 1.5 1.5 1.5zm-7 0c.83 0 1.5-.67 1.5-1.5S9.33 8 8.5 8 7 8.67 7 9.5 7.67 11 8.5 11zm3.5 6.5c2.33 0 4.31-1.46 5.11-3.5H6.89c.8 2.04 2.78 3.5 5.11 3.5z"/></svg>
-              </button>
-              <div style={{ flex: 1, background: '#fff', borderRadius: 22, padding: '5px 12px', display: 'flex', alignItems: 'center', boxShadow: '0 1px 2px rgba(0,0,0,0.08)' }}>
-                <input
-                  type="text"
-                  placeholder="Type a message..."
-                  value={input}
-                  onChange={e => setInput(e.target.value)}
-                  onKeyDown={e => e.key === 'Enter' && sendMessage(undefined)}
-                  disabled={sending}
-                  style={{ flex: 1, background: 'transparent', border: 'none', outline: 'none', fontSize: '0.73rem', color: '#111b21' }}
-                />
-              </div>
-              <button type="button" onClick={() => sendMessage(undefined)} disabled={sending || !input.trim()} aria-label="Send"
-                style={{ width: 36, height: 36, borderRadius: '50%', background: '#128c7e', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', border: 'none', cursor: input.trim() ? 'pointer' : 'default', flexShrink: 0, boxShadow: '0 2px 8px rgba(18,140,126,0.5)', opacity: sending || !input.trim() ? 0.5 : 1 }}>
-                {sending
-                  ? <span style={{ fontSize: '0.65rem' }}>…</span>
-                  : <svg style={{ width: 16, height: 16 }} fill="currentColor" viewBox="0 0 24 24"><path d="M2 21l21-9L2 3v7l15 2-15 2v7z"/></svg>
-                }
-              </button>
-            </div>
-
-          </div>
-
-          {/* Home indicator */}
-          <div style={{ position: 'absolute', bottom: 4, left: '50%', transform: 'translateX(-50%)', width: 48, height: 3, borderRadius: 10, background: 'rgba(0,0,0,0.18)' }} />
-        </div>
-
-      </section>
-    </main>
-  )
-}
 
 export default App

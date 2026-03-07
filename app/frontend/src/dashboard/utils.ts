@@ -11,7 +11,7 @@ export function formatWelcomeName(username: string | null | undefined): string {
     .join(' ')
 }
 
-/** Dashboard welcome: main greeting; language choice (English/Hindi) is on the card. */
+/** Dashboard welcome: main greeting for the welcome card. */
 export function getWelcomeMessage(
   displayName: string,
   _isDashboard: boolean

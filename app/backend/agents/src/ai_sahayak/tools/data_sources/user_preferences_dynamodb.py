@@ -26,11 +26,12 @@ def update_alert_preferences(
     user_id: str,
     alert_days_before: Optional[int] = None,
     alert_time_hour_ist: Optional[int] = None,
+    alert_time_minute_ist: Optional[int] = None,
     phone: Optional[str] = None,
 ) -> bool:
     """
-    Update alert_days_before and/or alert_time_hour_ist for the user in DynamoDB.
-    Lambda reads these for per-user alert window and (with Step 3) hour filter.
+    Update alert_days_before and/or alert_time_hour_ist and/or alert_time_minute_ist for the user in DynamoDB.
+    Lambda reads these for per-user alert window and time (hour + optional minute 0 or 30).
     Returns True if update succeeded.
     """
     if not user_id or user_id == "unknown_user":
@@ -50,6 +51,12 @@ def update_alert_preferences(
         updates.append("#h = :h")
         expr_names["#h"] = "alert_time_hour_ist"
         expr_values[":h"] = alert_time_hour_ist
+    if alert_time_minute_ist is not None:
+        if alert_time_minute_ist not in (0, 30):
+            return False
+        updates.append("#m = :m")
+        expr_names["#m"] = "alert_time_minute_ist"
+        expr_values[":m"] = alert_time_minute_ist
     if phone is not None:
         updates.append("#p = :p")
         expr_names["#p"] = "phone"

@@ -5,14 +5,12 @@
 export type DashboardProps = {
   welcomeName?: string | null
   onBackToChat: () => void
-  onToRajuDay: () => void
   onLogout: () => void
 }
 
 export type WelcomeCardProps = {
   main: string
   onContinue: () => void
-  onLanguageChoice?: (lang: 'en' | 'hi') => void
   onLogout?: () => void
 }
 

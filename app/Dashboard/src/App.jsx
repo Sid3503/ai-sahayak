@@ -261,6 +261,7 @@ export default function App() {
   const [forecastExplainSource, setForecastExplainSource] = useState("deterministic");
   const [forecastExplainDetail, setForecastExplainDetail] = useState("");
   const [modalState, setModalState] = useState({ open: false, title: "", body: "", source: "deterministic" });
+  const [chatDriveToast, setChatDriveToast] = useState("");
 
   const on = (k, v) => setForm((p) => ({ ...p, [k]: v }));
   const selectedSku = useMemo(() => meta.skus.find((s) => s.sku_id === form.sku_id), [meta.skus, form.sku_id]);
@@ -301,6 +302,41 @@ export default function App() {
     if (!datasetKey) return;
     loadStatusAndKpis(datasetKey, form.sku_id).catch((e) => setError(`KPI load failed: ${e.message}`));
   }, [datasetKey, form.sku_id]);
+
+  // When user asks in WP chat, agents call dashboard drive-ui; we poll and auto-navigate, select SKU, show same data (wow factor for judges)
+  useEffect(() => {
+    const t = setInterval(async () => {
+      try {
+        const r = await fetch("/api/chat-action");
+        if (!r.ok) return;
+        const data = await r.json();
+        if (!data.action) return;
+        const payload = data.payload || {};
+        // Optional: switch retailer if chat asked for another dataset (and not embed-locked)
+        if (payload.dataset_key && !embedRetailer) {
+          if (payload.dataset_key !== datasetKey) loadMeta(payload.dataset_key).catch(() => {});
+          setDatasetKey(payload.dataset_key);
+        }
+        // Optional: select SKU from chat (e.g. user said "sugar" → select Sugar from dropdown)
+        if (payload.sku_id) on("sku_id", payload.sku_id);
+        if (data.action === "review" || data.action === "price") {
+          if (data.payload) setPriceRes(data.payload);
+          setTab(data.action === "review" ? "Review" : "Price");
+          setChatDriveToast("Live from your chat — same data as WhatsApp reply");
+          setTimeout(() => setChatDriveToast(""), 5000);
+        } else if (data.action === "insights") {
+          setTab("Insights");
+          setChatDriveToast("Live from your chat — Insights");
+          setTimeout(() => setChatDriveToast(""), 5000);
+        } else if (data.action === "overview") {
+          setTab("Overview");
+          setChatDriveToast("Live from your chat — Overview");
+          setTimeout(() => setChatDriveToast(""), 5000);
+        }
+      } catch (_) {}
+    }, 2500);
+    return () => clearInterval(t);
+  }, [datasetKey]);
 
   const runPrice = async () => {
     setBusy(true);
@@ -438,8 +474,10 @@ export default function App() {
     });
   };
 
+  const isEmbedded = typeof window !== "undefined" && window.self !== window.top;
+
   return (
-    <div className="page-shell">
+    <div className={`page-shell${isEmbedded ? " embed-fit" : ""}`}>
       <div className="ambient ambient-a" />
       <div className="ambient ambient-b" />
       <div className="page">
@@ -450,26 +488,12 @@ export default function App() {
           source={modalState.source}
           onClose={() => setModalState({ open: false, title: "", body: "", source: "deterministic" })}
         />
-        <header className="hero">
-          <div className="hero-main">
-            <div className="brand-mark">AI</div>
-            <div>
-              <p className="eyebrow">Retail Intelligence Copilot</p>
-              <h1>AI Sahayak Control Centre</h1>
-              <p className="hero-sub">Smart pricing, demand sensing, stock risk and scenario review for {currentDatasetLabel}'s retail operation.</p>
-            </div>
+        {chatDriveToast ? (
+          <div className="chat-drive-toast" style={{ padding: "8px 14px", background: "linear-gradient(135deg,#059669,#10b981)", color: "#fff", borderRadius: 8, marginBottom: 8, fontSize: "0.85rem", fontWeight: 600, display: "flex", alignItems: "center", gap: 8 }}>
+            <span style={{ opacity: 0.9 }}>📱</span>
+            {chatDriveToast}
           </div>
-          <div className="status-panel">
-            <div className="status-head">Model Status</div>
-            <div className="status-grid">
-              <MetricChip label="Bedrock" value={status.bedrock_ready ? "Connected" : "Not Ready"} />
-              <MetricChip label="Forecast" value={status.forecast_primary || "N/A"} />
-              <MetricChip label="DNN" value={status.dnn_loaded ? "Loaded" : "Fallback"} />
-              <MetricChip label="DeepAR" value={status.deepar_endpoint_configured ? "Endpoint Active" : "Local Proxy"} />
-            </div>
-          </div>
-        </header>
-
+        ) : null}
         <nav className="tabs">
           {TABS.map((t) => (
             <button key={t} className={tab === t ? "tab active" : "tab"} onClick={() => setTab(t)}>
@@ -651,6 +675,22 @@ export default function App() {
 
             {tab === "Review" && (
               <>
+                {priceRes?.assistant_message || priceRes?.selection ? (
+                  <section className="cards-2" style={{ marginBottom: 16 }}>
+                    <article className="panel" style={{ borderLeft: "4px solid #10b981", background: "linear-gradient(135deg, rgba(16,185,129,0.06) 0%, transparent 100%)" }}>
+                      <div className="section-head">
+                        <h3>Last price run — from your chat</h3>
+                        <span style={{ fontSize: "0.75rem", color: "#059669", fontWeight: 600 }}>Same data as WhatsApp reply</span>
+                      </div>
+                      <p style={{ margin: "0 0 8px", fontSize: "0.95rem", lineHeight: 1.5 }}>{priceRes?.assistant_message || summaryFromExplanation(priceRes?.assistant_detail) || "—"}</p>
+                      <div className="detail-list" style={{ marginTop: 8 }}>
+                        <div><span>Recommended price</span><strong>{inr(priceRes?.selection?.price_recommended || priceRes?.selection?.price)}</strong></div>
+                        <div><span>Item</span><strong>{priceRes?.selection?.item_name || priceRes?.item_name || "—"}</strong></div>
+                        <div><span>Margin</span><strong>{Number(priceRes?.selection?.margin_pct || 0).toFixed(1)}%</strong></div>
+                      </div>
+                    </article>
+                  </section>
+                ) : null}
                 <section className="cards-2">
                   <article className="panel">
                     <div className="section-head">

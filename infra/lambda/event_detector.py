@@ -1,6 +1,13 @@
 """
 EventBridge-triggered Lambda: reads calendar from S3, finds upcoming events,
 and POSTs them to the backend webhook so the dashboard can show alerts (e.g. Holi in 10 days).
+
+Daily-at-fixed-time (set from chat): User says "9 baje bhejo" in Live Alerts; backend saves
+alert_time_hour_ist to DynamoDB (user_preferences_dynamodb). To respect it:
+- Create an EventBridge rule that runs every hour (e.g. cron(0 0/1 * * ? *) for hourly).
+- In this Lambda (or a separate daily-summary Lambda), read USERS_TABLE and filter users
+  where alert_time_hour_ist == current_ist_hour; for each, POST to BACKEND_WEBHOOK_URL
+  with user_id and daily summary text so Live Alerts shows it for that customer.
 """
 import json
 import os

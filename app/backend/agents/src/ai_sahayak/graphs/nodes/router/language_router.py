@@ -27,6 +27,22 @@ class LanguageRouterNode:
                 }
             }
 
+        # If the user's message is exactly a language choice (e.g. "Hindi", "Hinglish"), set target_language and do NOT translate the message
+        last_content = ""
+        if state.get("messages"):
+            last_msg = state["messages"][-1]
+            if isinstance(last_msg, HumanMessage) and getattr(last_msg, "content", None):
+                last_content = str(last_msg.content).strip().lower()
+        if last_content in ("english", "hindi", "hinglish", "marathi"):
+            lang_code = "en" if last_content == "english" else "hi" if last_content in ("hindi", "hinglish") else "mr"
+            return {
+                "user_context": {
+                    **user_context,
+                    "target_language": lang_code,
+                    "requires_translation": (lang_code != "en"),
+                }
+            }
+
         # If there are no messages, default to english
         if not state["messages"]:
             return {"user_context": {**user_context, "target_language": "en"}}

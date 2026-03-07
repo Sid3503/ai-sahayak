@@ -70,6 +70,35 @@ except Exception:
 
 # Paths
 BASE_DIR = Path(__file__).resolve().parent
+
+def _load_env_file(path: Path) -> None:
+    """Load KEY=value lines from path into os.environ. File wins over existing env."""
+    try:
+        if not path.exists():
+            return
+        for line in path.read_text(encoding="utf-8", errors="ignore").splitlines():
+            line = line.strip()
+            if not line or line.startswith("#"):
+                continue
+            if "=" in line:
+                k, v = line.split("=", 1)
+                k = k.strip()
+                v = v.strip().strip("'\"").replace("\\n", "\n")
+                if k and v:
+                    os.environ[k] = v
+    except Exception:
+        pass
+
+# Load .env / .env.local so AWS_* are available without exporting in terminal every time.
+# Try dotenv first, then always run our loader from BASE_DIR so credentials are never missed.
+try:
+    from dotenv import load_dotenv
+    load_dotenv(BASE_DIR / ".env")
+    load_dotenv(BASE_DIR / ".env.local")
+except ImportError:
+    pass
+for _env_path in (BASE_DIR / ".env", BASE_DIR / ".env.local", Path.cwd() / ".env", Path.cwd() / ".env.local"):
+    _load_env_file(_env_path)
 DATA_CSV = os.getenv("AI_SAHAYAK_DATA_CSV", str(BASE_DIR / "raju_kirana_2yr.csv"))
 SOP_DOCX = os.getenv(
     "AI_SAHAYAK_SOP_DOCX",
@@ -158,6 +187,10 @@ BEDROCK_FALLBACK_MODELS = [
 LLM_MAX_TOKENS = 1200
 REQUIRE_BEDROCK = os.getenv("AI_SAHAYAK_REQUIRE_BEDROCK", "1").strip().lower() not in ("0", "false", "no")
 _BEDROCK_STATUS_CACHE: Dict[str, Any] = {"checked_at": 0.0, "ok": False, "error": "not_checked"}
+
+# Chat-driven UI: when WP user asks for review/price, agents POST here; dashboard frontend polls GET to auto-navigate.
+_CHAT_DRIVE_STATE: Dict[str, Any] = {}
+_CHAT_DRIVE_TTL_SEC = 30
 
 # Default SOP guardrails
 DEFAULT_GUARDRAILS = {
@@ -1173,6 +1206,25 @@ def bedrock_invoke(messages: list, model_id: str = BEDROCK_MODEL_ID, max_tokens:
     raise RuntimeError(f"Bedrock invocation failed across models: {last_error}")
 
 
+def _bedrock_ping_via_invoke(region: str) -> bool:
+    """Minimal invoke to verify Bedrock works (e.g. when list_foundation_models is not allowed). Uses 1 token."""
+    import json as _json
+    runtime = boto3.client("bedrock-runtime", region_name=region)
+    candidates = [BEDROCK_MODEL_ID] + [m for m in BEDROCK_FALLBACK_MODELS if m != BEDROCK_MODEL_ID]
+    ping_messages = [{"role": "user", "content": "Say OK"}]
+    for model_id in candidates:
+        try:
+            req = _bedrock_request_for_model(model_id, ping_messages, max_tokens=1, temperature=0.0)
+            resp = runtime.invoke_model(modelId=model_id, body=_json.dumps(req))
+            body = resp["body"].read().decode("utf-8")
+            parsed = _json.loads(body)
+            _bedrock_parse_response(model_id, parsed)
+            return True
+        except Exception:
+            continue
+    return False
+
+
 def get_bedrock_status(force: bool = False) -> Dict[str, Any]:
     now = time.time()
     if not force and now - float(_BEDROCK_STATUS_CACHE.get("checked_at", 0.0)) < 60:
@@ -1181,20 +1233,41 @@ def get_bedrock_status(force: bool = False) -> Dict[str, Any]:
     try:
         if boto3 is None:
             raise RuntimeError("boto3 is not installed on the backend.")
-        session = boto3.Session(region_name=AWS_REGION)
+        # Use env region so terminal exports (AWS_DEFAULT_REGION / AWS_REGION) are respected
+        region = os.getenv("AWS_REGION") or os.getenv("AWS_DEFAULT_REGION") or "ap-south-1"
+        session = boto3.Session(region_name=region)
         creds = session.get_credentials()
         if creds is None:
-            raise RuntimeError("AWS credentials are not available on the backend runtime.")
-        bedrock_client = session.client("bedrock", region_name=AWS_REGION)
-        resp = bedrock_client.list_foundation_models()
-        models = resp.get("modelSummaries", []) if isinstance(resp, dict) else []
-        if not models:
-            raise RuntimeError("Bedrock returned no accessible foundation models in this region.")
-        status["ok"] = True
-        status["error"] = ""
+            raise RuntimeError(
+                "AWS credentials not found. In the same terminal where you start the backend, run: "
+                "export AWS_ACCESS_KEY_ID=... ; export AWS_SECRET_ACCESS_KEY=... ; export AWS_DEFAULT_REGION=ap-south-1"
+            )
+        bedrock_client = session.client("bedrock", region_name=region)
+        # Prefer list_foundation_models (needs bedrock:ListFoundationModels)
+        try:
+            resp = bedrock_client.list_foundation_models()
+            models = resp.get("modelSummaries", []) if isinstance(resp, dict) else []
+            if models:
+                list_ok = True
+                status["ok"] = True
+                status["error"] = ""
+                _BEDROCK_STATUS_CACHE.update(status)
+                return dict(_BEDROCK_STATUS_CACHE)
+        except Exception:
+            pass
+        # Fallback: if list fails or returns empty, check via actual invoke (same path as price review)
+        if _bedrock_ping_via_invoke(region):
+            status["ok"] = True
+            status["error"] = ""
+        else:
+            status["ok"] = False
+            status["error"] = "List and invoke check failed. Check IAM: bedrock:ListFoundationModels and/or bedrock:InvokeModel."
     except Exception as exc:
         status["ok"] = False
-        status["error"] = str(exc)
+        err = str(exc)
+        status["error"] = err
+        if "AccessDenied" in err or "Unauthorized" in err:
+            status["error"] = f"{err} — Check IAM has bedrock:ListFoundationModels and bedrock:InvokeModel."
     _BEDROCK_STATUS_CACHE.update(status)
     return dict(_BEDROCK_STATUS_CACHE)
 
@@ -2418,6 +2491,34 @@ def create_api_app() -> Any:
         resp.headers["Access-Control-Allow-Methods"] = "GET, POST, OPTIONS"
         return resp
 
+    # Chat drive-ui: register first so they are always available (WP chat drives dashboard)
+    @app.route("/api/drive-ui", methods=["POST", "OPTIONS"], strict_slashes=False)
+    def drive_ui():
+        """Called by agents backend when user asks for review/price in WP chat."""
+        if request.method == "OPTIONS":
+            return "", 204
+        global _CHAT_DRIVE_STATE
+        data = request.get_json(silent=True) or {}
+        action = (data.get("action") or "").strip().lower() or "review"
+        payload = data.get("payload")
+        _CHAT_DRIVE_STATE = {
+            "action": action if action in ("review", "price", "insights", "overview") else "review",
+            "payload": payload,
+            "ts": time.time(),
+        }
+        return jsonify({"ok": True, "action": _CHAT_DRIVE_STATE["action"]})
+
+    @app.route("/api/chat-action", methods=["GET"], strict_slashes=False)
+    def chat_action():
+        """Polled by dashboard frontend. Returns last chat-driven action and payload; clears after read."""
+        global _CHAT_DRIVE_STATE
+        now = time.time()
+        prev = _CHAT_DRIVE_STATE
+        if prev and (now - prev.get("ts", 0)) < _CHAT_DRIVE_TTL_SEC:
+            _CHAT_DRIVE_STATE = {}
+            return jsonify({"action": prev.get("action", "review"), "payload": prev.get("payload")})
+        return jsonify({"action": None, "payload": None})
+
     @app.route("/api/health", methods=["GET"])
     def health():
         return jsonify({"ok": True, "service": "ai-sahayak-api"})
@@ -3021,7 +3122,7 @@ def run_interactive():
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="AI Sahayak engine")
     parser.add_argument("--mode", choices=["cli", "api"], default=os.getenv("AI_SAHAYAK_MODE", "cli"))
-    parser.add_argument("--host", default=os.getenv("AI_SAHAYAK_API_HOST", "127.0.0.1"))
+    parser.add_argument("--host", default=os.getenv("AI_SAHAYAK_API_HOST", "127.0.0.1"))  # Use 0.0.0.0 on EC2 so Lambda can reach /api
     parser.add_argument("--port", type=int, default=int(os.getenv("AI_SAHAYAK_API_PORT", "8000")))
     parser.add_argument("--reload-runtime", action="store_true", help="Force reload dataset/models at API start")
     args = parser.parse_args()
@@ -3031,6 +3132,9 @@ if __name__ == "__main__":
                 init_runtime(force_reload=True)
             api_app = create_api_app()
             console.print(f"Starting API at http://{args.host}:{args.port}", markup=False)
+            rules = [r.rule for r in api_app.url_map.iter_rules() if "drive-ui" in r.rule or "chat-action" in r.rule]
+            if rules:
+                console.print(f"Chat drive-ui routes: {rules}", markup=False)
             api_app.run(host=args.host, port=args.port, debug=False)
         else:
             run_interactive()

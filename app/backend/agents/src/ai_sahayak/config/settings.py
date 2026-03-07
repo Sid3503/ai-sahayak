@@ -23,9 +23,9 @@ class Settings(BaseSettings):
 
     CALENDAR_S3_BUCKET: str = ""
     CALENDAR_S3_KEY: str = "panchang/events.json"
-    USERS_TABLE: str = "ai-sahayak-users"
-    STORES_TABLE: str = "ai-sahayak-stores"
-    CONVERSATIONS_TABLE: str = ""
+    USERS_TABLE: str = "ai_sahayak_user_info"
+    STORES_TABLE: str = "ai_sahayak_stores"
+    CONVERSATIONS_TABLE: str = "ai_sahayak_conversation_history"
     ALERTS_TABLE: str = ""
     BEDROCK_KNOWLEDGE_BASE_ID: str = "PF0KY6SM7W"
 

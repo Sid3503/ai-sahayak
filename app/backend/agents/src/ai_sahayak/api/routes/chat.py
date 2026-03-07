@@ -1,3 +1,4 @@
+import asyncio
 import base64
 import tempfile
 import httpx
@@ -31,25 +32,9 @@ def generate_suggested_actions(state: dict) -> list:
         return []
 
     if current_step == "completed":
-        last_intent = state.get("next_intent", "default")
-        
-        if lang == "hi" or lang == "mr" or lang == "bn":
-            dashboard_suggestions = {
-                "sales_query": ["📈 आज की बिक्री", "📊 साप्ताहिक रिपोर्ट", "📉 पिछले महीने की बिक्री"],
-                "pricing_query": ["💰 मूल्य विश्लेषण", "📊 प्रतियोगी कीमतें", "💡 मार्जिन टिप्स"],
-                "inventory": ["📦 स्टॉक अलर्ट", "📋 इन्वेंटरी सारांश", "📊 स्टॉक स्तर"],
-                "forecast": ["🎉 त्योहार का पूर्वानुमान", "📈 मांग भविष्यवाणी", "📊 मौसमी रुझान"],
-                "default": ["💰 कीमत (Pricing)", "📦 स्टॉक (Inventory)", "📈 बिक्री (Sales)"]
-            }
-        else:
-            dashboard_suggestions = {
-                "sales_query": ["📈 Today's Sales", "📊 Weekly Report", "📉 Month-over-Month"],
-                "pricing_query": ["💰 Pricing Analysis", "📊 Competitor Rates", "💡 Margin Tips"],
-                "inventory": ["📦 Restock Alert", "📋 Inventory Summary", "📊 Stock Levels"],
-                "forecast": ["🎉 Festival Forecast", "📈 Demand Prediction", "📊 Seasonal Trends"],
-                "default": ["💰 Pricing", "📦 Inventory", "📈 Sales"]
-            }
-        return dashboard_suggestions.get(last_intent, dashboard_suggestions["default"])
+        # Don't show Pricing/Inventory/Sales buttons for web demo users
+        # Only show them for known retailers with actual dashboard data
+        return []
     
     return []
 
@@ -78,20 +63,35 @@ async def webhook_incoming(payload: InboundPayload):
     try:
         image_path = None
         transcribed_text = None
+        session_id = payload.session_id or f"{payload.platform}_{payload.user_id}"
 
         # Handle voice message: transcribe audio to text (Amazon Transcribe)
         if payload.audio:
             from ai_sahayak.tools.transcribe import transcribe_audio
-            lang = (payload.metadata or {}).get("voice_language", "hi")
-            language_code = "hi-IN" if lang in ("hi", "mr", "bn") else "en-IN"
-            transcribed_text = transcribe_audio(
-                payload.audio,
-                media_type=payload.audio_media_type or "audio/webm",
-                language_code=language_code,
-            )
+            from ai_sahayak.memory.conversation import get_conversation_state
+            # Use user's chosen language so transcript matches (English → Latin script, Hindi → Devanagari)
+            prior = await get_conversation_state(session_id)
+            preferred = (prior.get("onboarding_data") or {}).get("preferred_language") or ""
+            if preferred and preferred.lower() in ("hindi", "marathi", "hinglish"):
+                language_code = "mr-IN" if preferred.lower() == "marathi" else "hi-IN"
+            else:
+                language_code = "en-IN"
+            print(f"[Chat] Voice message received, transcribing (lang={language_code}, preferred={preferred or 'none'})...")
+            try:
+                transcribed_text = await asyncio.to_thread(
+                    transcribe_audio,
+                    payload.audio,
+                    payload.audio_media_type or "audio/webm",
+                    language_code,
+                )
+            except Exception as e:
+                print(f"[Chat] Transcribe error: {e}")
+                transcribed_text = None
             if transcribed_text:
+                print(f"[Chat] Transcribe result: {transcribed_text[:80]}...")
                 payload.text = transcribed_text
             else:
+                print("[Chat] Transcribe returned None — using placeholder")
                 payload.text = payload.text or "Voice message"
 
         # Handle image processing
@@ -118,8 +118,7 @@ async def webhook_incoming(payload: InboundPayload):
         
         if not payload.text:
             raise HTTPException(status_code=400, detail="Either 'text', 'image', or 'audio' (voice) must be provided")
-        
-        session_id = payload.session_id or f"{payload.platform}_{payload.user_id}"
+
         user_message = HumanMessage(content=payload.text, name=payload.user_id)
         
         print(f"--- Chat Route Triggered: {session_id} ---")
@@ -180,16 +179,30 @@ async def webhook_incoming(payload: InboundPayload):
         
         ai_messages = [m for m in result.get("messages", []) if isinstance(m, AIMessage)]
         reply_text = ai_messages[-1].content if ai_messages else "No response generated."
-        
-        # Determine if we need to translate the AI's English response back to the user's regional language
+
+        # Translate reply to user's chosen language when they selected Hindi, Hinglish, or Marathi
         user_context = result.get("user_context", {})
-        if user_context.get("requires_translation"):
-            from ai_sahayak.language.translation.pipeline import TranslationPipeline
-            translator = TranslationPipeline()
-            reply_text = await translator.translate_from_english(
-                reply_text, 
-                user_context.get("target_language", "hi")
-            )
+        onboarding_data = result.get("onboarding_data", {}) or {}
+        preferred = (onboarding_data.get("preferred_language") or "").strip().lower()
+        target_lang = user_context.get("target_language", "en")
+        if user_context.get("requires_translation") or preferred in ("hindi", "hinglish", "marathi"):
+            if preferred in ("hindi", "hinglish"):
+                target_lang = "hi"
+            elif preferred == "marathi":
+                target_lang = "mr"
+            if target_lang and target_lang != "en":
+                # Skip translation if reply is already in Devanagari (LLM replied in Hindi/Marathi)
+                devanagari_chars = sum(1 for c in reply_text if "\u0900" <= c <= "\u097f")
+                if devanagari_chars < len(reply_text) * 0.3:
+                    try:
+                        from ai_sahayak.language.translation.pipeline import TranslationPipeline
+                        translator = TranslationPipeline()
+                        reply_text = await translator.translate_from_english(
+                            reply_text,
+                            target_lang,
+                        )
+                    except Exception as tr_err:
+                        print(f"[Chat] Translation to {target_lang} failed: {tr_err}")
         
         # After onboarding credentials message, don't show Pricing/Inventory/Sales — only the ID/pass and "Open Dashboard" flow
         suggested = generate_suggested_actions(result)

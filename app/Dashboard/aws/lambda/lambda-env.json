@@ -1,6 +1,7 @@
 {
   "Variables": {
     "AI_SAHAYAK_API_BASE_URL": "http://13.206.41.149/api",
+    "BACKEND_ALERTS_URL": "",
     "AI_SAHAYAK_DATASET_KEY": "raju",
     "AI_SAHAYAK_FORECAST_DAYS": "7",
     "AI_SAHAYAK_TOP_SKU_LIMIT": "8",

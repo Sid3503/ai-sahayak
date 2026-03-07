@@ -74,6 +74,19 @@ async def onboarding_node(state: ConversationState):
         if raw.isdigit() and len(raw) == 6 and (not onboarding_data.get("pincode") or not onboarding_data.get("location")):
             onboarding_data["pincode"] = raw
             onboarding_data["location"] = raw
+
+    # Fallback: we have name but no store_name — use user's last reply as store name (stops "What is the official name of your shop?" loop)
+    from langchain_core.messages import HumanMessage
+    def _has_val(v):
+        return v and str(v).strip().lower() not in ["null", "none", "not provided", "", "unknown"]
+    if messages_list and len(messages_list) >= 2 and _has_val(onboarding_data.get("name")) and not _has_val(onboarding_data.get("store_name")):
+        last_msg = messages_list[-1]
+        if isinstance(last_msg, HumanMessage):
+            user_reply = (getattr(last_msg, "content", "") or "").strip()
+            if user_reply and len(user_reply) < 200 and user_reply.lower() not in ("english", "hindi", "hinglish", "marathi"):
+                if not (user_reply.isdigit() and len(user_reply) == 6):
+                    onboarding_data["store_name"] = user_reply
+
     system_content = system_template.replace("{name}", str(name_for_prompt))\
                                     .replace("{store_name}", str(onboarding_data.get("store_name", "Not provided")))\
                                     .replace("{store_type}", str(onboarding_data.get("store_type", "Not provided")))\
@@ -128,7 +141,10 @@ async def onboarding_node(state: ConversationState):
             for k, v in extracted_data.items():
                 if not is_valid_value(v):
                     continue
-                # Aadhar "uploaded" (document/photo) — skip validator, store as-is
+                # Aadhar: we already set "uploaded" from document/photo detection — don't overwrite with LLM extraction (e.g. "4" from filename)
+                if k == "aadhar" and str(onboarding_data.get("aadhar", "")).strip().lower() == "uploaded":
+                    continue
+                # Aadhar "uploaded" from LLM — accept as-is
                 if k == "aadhar" and str(v).strip().lower() == "uploaded":
                     onboarding_data[k] = "uploaded"
                     continue
@@ -150,31 +166,21 @@ async def onboarding_node(state: ConversationState):
                         onboarding_data["gst_number"] = "no"
 
                 # DB Injection - Progressive Upsert
-                user_id = state.get("user_context", {}).get("user_id", "unknown_user")
-                phone = state.get("user_context", {}).get("phone_number")
-
-                db_tool = DynamoDBTool()
-                if onboarding_data.get("name") or phone:
-                    await db_tool.upsert_user_profile(
-                        user_id=user_id,
-                        name=onboarding_data.get("name", "Unknown"),
-                        phone=phone
-                    )
-
-                if onboarding_data.get("store_name") or onboarding_data.get("location"):
+                # Skip progressive upserts during onboarding to avoid duplicate entries
+                # We'll do final upsert when onboarding completes with the generated user_id_cred
+                if onboarding_data.get("location") or onboarding_data.get("pincode"):
                     raw_location = onboarding_data.get("location") or onboarding_data.get("pincode") or "Unknown Location"
                     resolved_location = await enrich_location(raw_location)
                     onboarding_data["resolved_location"] = resolved_location
-                    await db_tool.upsert_store_profile(
-                        user_id=user_id,
-                        store_name=onboarding_data.get("store_name", "Unknown Store"),
-                        location=resolved_location
-                    )
                 
     except Exception as e:
-        print(f"Failed to parse onboarding JSON: {e}")
         # Fallback to raw response if JSON parsing fails
+        # This is expected when LLM returns plain text (e.g., asking for Aadhar/GST)
         reply_text = response.content
+        # Only log if it's not a simple acknowledgment or question
+        if not any(keyword in response.content.lower() for keyword in ['aadhar', 'gst', 'verification', 'upload', 'provide']):
+            print(f"Failed to parse onboarding JSON: {e}")
+            print(f"Raw LLM response: {response.content[:500]}")
 
     # When user said "no" to GST but LLM didn't put it in data (e.g. parse failed or empty data), set it so we can complete
     if not is_valid_value(onboarding_data.get("gst_number")) and is_valid_value(onboarding_data.get("aadhar")):
@@ -191,31 +197,34 @@ async def onboarding_node(state: ConversationState):
     # Deterministic completion check (ignore LLM's flag to avoid premature completion)
     required_keys = ["name", "store_name", "store_type", "pincode", "location", "years_in_business", "aadhar", "gst_number"]
     is_complete = all(is_valid_value(onboarding_data.get(k)) for k in required_keys)
+    
+    print(f"Onboarding completion check: {is_complete}")
+    print(f"Onboarding data: {onboarding_data}")
         
     if is_complete:
         new_step = "completed"
         
-        # Credentials: User ID = phone (from WhatsApp in production; for web/demo use fixed demo number)
-        # Password = firstname_last4digitofphone + ! for Cognito
+        # Credentials: Generate 10-digit user ID (phone-like for consistency)
+        # For web users, generate random 10-digit number; for WhatsApp, use actual phone
         user_name = onboarding_data.get("name", "User").strip()
+        user_id_from_payload = str(state.get("user_context", {}).get("user_id", "")).strip()
         payload_phone = str(state.get("user_context", {}).get("phone_number", "")).strip().replace(" ", "")
-        platform = state.get("user_context", {}).get("platform", "")
-        # In real WhatsApp, phone and name come from WhatsApp. In web UI demo we use a fixed demo phone for judges.
-        DEMO_PHONE_10 = "9004755498"  # Demo User ID for web UI; in real WP this would be user's WhatsApp number
+        
+        # Generate user_id: if real phone, use it; else generate 10-digit number
         if payload_phone and payload_phone != "0000000000" and len(payload_phone) >= 10 and payload_phone.isdigit():
-            raw_phone = payload_phone[-10:] if len(payload_phone) > 10 else payload_phone
-            user_id_cred = raw_phone  # 10-digit only, no 91 prefix
+            user_id_cred = payload_phone[-10:] if len(payload_phone) > 10 else payload_phone
         else:
-            # Web/demo: use demo number (10-digit, no prefix)
-            raw_phone = DEMO_PHONE_10
-            user_id_cred = DEMO_PHONE_10  # 9004755498
+            # Generate random 10-digit phone-like number for web users
+            import random
+            user_id_cred = "9" + "".join([str(random.randint(0, 9)) for _ in range(9)])
+        
+        # Password: firstname + last4digits + ! (Cognito requires uppercase + numbers)
         first_name = user_name.split()[0] if user_name else "User"
         first_name = "".join(c for c in first_name if c.isalpha())[:20] or "User"
-        # Cognito password policy requires uppercase; capitalize so e.g. raju -> Raju, giving Raju_5498!
         first_name_for_pwd = (first_name or "User").capitalize()
-        last4 = (raw_phone or "0000")[-4:]
-        pwd = f"{first_name_for_pwd}_{last4}!"
-        phone_num = raw_phone  # for DB upsert; in demo this is 9004755498
+        last4 = user_id_cred[-4:]
+        pwd = f"{first_name_for_pwd}{last4}!"
+        phone_num = payload_phone if payload_phone and payload_phone != "0000000000" else user_id_cred
 
         final_message = (
             "You're all set! Use these to sign in to the Dashboard:\n\n"
@@ -235,23 +244,23 @@ async def onboarding_node(state: ConversationState):
         # Finalize and persist user credentials and store (with resolved location) to the database
         try:
             db_tool_final = DynamoDBTool()
-            import asyncio
-            asyncio.create_task(db_tool_final.upsert_user_profile(
+            await db_tool_final.upsert_user_profile(
                 user_id=user_id_cred,
                 name=user_name,
                 phone=phone_num,
                 password=pwd
-            ))
+            )
             # Persist store with City, District, State when possible
             loc_for_store = onboarding_data.get("resolved_location")
             if not loc_for_store:
                 raw = onboarding_data.get("location") or onboarding_data.get("pincode") or "Unknown Location"
                 loc_for_store = await enrich_location(raw)
-            asyncio.create_task(db_tool_final.upsert_store_profile(
+            await db_tool_final.upsert_store_profile(
                 user_id=user_id_cred,
                 store_name=onboarding_data.get("store_name", "Unknown Store"),
                 location=loc_for_store
-            ))
+            )
+            print(f"✅ User {user_id_cred} and store persisted to DynamoDB")
         except Exception as e:
             print(f"Failed to upsert user credentials: {e}")
 
@@ -260,7 +269,19 @@ async def onboarding_node(state: ConversationState):
             "current_step": new_step,
             "onboarding_data": onboarding_data
         }
-        
+
+    # Safeguards: if we already have data but LLM re-asked, skip to next question
+    r = (reply_text or "").strip().lower()
+    if is_valid_value(onboarding_data.get("pincode")) and is_valid_value(onboarding_data.get("location")):
+        if "pincode" in r or "6-digit" in r or ("share" in r and "location" in r) or "enter an address" in r:
+            reply_text = "How many years have you been running this business?"
+    elif is_valid_value(onboarding_data.get("store_name")) and ("official name of your shop" in r or "name of your shop" in r):
+        # Have shop name but LLM asked again — ask for store type or pincode
+        if is_valid_value(onboarding_data.get("store_type")):
+            reply_text = "What is your shop's 6-digit Pincode?\n\nYou can either manually *enter an address* or *share your current location*."
+        else:
+            reply_text = "What type of store do you run? (e.g., Kirana, General Store, Medical)"
+
     return {
         "messages": [AIMessage(content=reply_text)],
         "current_step": new_step,

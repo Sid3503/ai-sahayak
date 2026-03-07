@@ -19,8 +19,6 @@ TOP_SKU_LIMIT = max(1, int(os.getenv("AI_SAHAYAK_TOP_SKU_LIMIT", "8")))
 HTTP_TIMEOUT_SECS = max(3, int(os.getenv("AI_SAHAYAK_HTTP_TIMEOUT_SECS", "30")))
 MAX_RETRIES = max(1, int(os.getenv("AI_SAHAYAK_HTTP_RETRIES", "2")))
 CALENDAR_EVENTS_JSON = os.getenv("AI_SAHAYAK_CALENDAR_EVENTS_JSON", "[]")
-# Agents backend base URL (e.g. https://your-agents.example.com). Lambda POSTs daily summary to /v1/alerts/incoming so Live Alerts shows it.
-BACKEND_ALERTS_URL = (os.getenv("BACKEND_ALERTS_URL") or os.getenv("BACKEND_WEBHOOK_URL") or "").rstrip("/")
 
 sns = boto3.client("sns", region_name=REGION)
 ssm = boto3.client("ssm", region_name=REGION)
@@ -205,58 +203,6 @@ def _build_summary_line(sku: str, item_name: str, action: Dict[str, Any]) -> str
     )
 
 
-def _build_hinglish_alert_message(
-    dataset_key: str,
-    target_date: str,
-    decision_rows: List[Dict[str, Any]],
-    active_names: List[str],
-    festival_multiplier: float,
-) -> str:
-    """Short Hinglish message for Live Alerts: daily snapshot, low stock, festivals."""
-    critical = [r for r in decision_rows if (r.get("action") or {}).get("risk_level") == "critical"]
-    watch = [r for r in decision_rows if (r.get("action") or {}).get("risk_level") == "watch"]
-    parts = [f"📊 Aaj ka daily summary ({target_date})"]
-    if critical:
-        names = ", ".join((str(r.get("item_name") or r.get("sku_id", ""))[:20] for r in critical[:3]))
-        parts.append(f"⚠️ Low stock / reorder: {names}" + (" …" if len(critical) > 3 else ""))
-    if watch:
-        parts.append(f"👀 Watch: {len(watch)} SKU restock jaldi karein.")
-    if active_names:
-        parts.append(f"📅 Festivals: {', '.join(active_names[:3])}" + (f" (multiplier {festival_multiplier:.1f}x)" if festival_multiplier != 1.0 else ""))
-    if not (critical or watch or active_names):
-        parts.append("Sab stable. Koi urgent action nahi.")
-    return "\n".join(parts)
-
-
-def _post_alert_to_live_alerts(user_id: str, text: str, alert_type: str = "daily_forecast") -> bool:
-    """POST to agents backend so Live Alerts (WP UI) shows this message for the user."""
-    if not BACKEND_ALERTS_URL or not user_id:
-        return False
-    url = f"{BACKEND_ALERTS_URL}/v1/alerts/incoming"
-    payload = {
-        "user_id": user_id.strip().lower(),
-        "text": text,
-        "alert_type": alert_type,
-        "platform": "whatsapp",
-        "is_alert": True,
-    }
-    headers = {"Content-Type": "application/json"}
-    if "ngrok" in BACKEND_ALERTS_URL.lower():
-        headers["ngrok-skip-browser-warning"] = "true"
-    try:
-        req = urllib.request.Request(
-            url,
-            data=json.dumps(payload).encode("utf-8"),
-            headers=headers,
-            method="POST",
-        )
-        with urllib.request.urlopen(req, timeout=25) as resp:
-            return 200 <= getattr(resp, "status", 0) < 300
-    except Exception as exc:
-        print(f"[orchestrator] POST alerts/incoming failed: {exc}")
-        return False
-
-
 def run_daily_orchestration(target_date: str, days: int = DEFAULT_DAYS, event: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
     event = event or {}
     dataset_key = str(event.get("dataset_key", DEFAULT_DATASET_KEY)).strip() or DEFAULT_DATASET_KEY
@@ -321,19 +267,9 @@ def run_daily_orchestration(target_date: str, days: int = DEFAULT_DAYS, event: O
     if SNS_TOPIC_ARN:
         sns.publish(TopicArn=SNS_TOPIC_ARN, Subject="AI Sahayak Daily Forecast", Message=message)
 
-    # Push to Live Alerts (WP-style chat) so the retailer sees daily summary, low stock, festivals
-    alerts_pushed = False
-    if BACKEND_ALERTS_URL and summary_lines:
-        short_msg = _build_hinglish_alert_message(
-            dataset_key, target_date, decision_rows, active_names,
-            _safe_float(festival_context.get("festival_multiplier", 1.0), 1.0),
-        )
-        alerts_pushed = _post_alert_to_live_alerts(dataset_key, short_msg, "daily_forecast")
-
     return {
         "ok": True,
         "orchestrator_version": ORCHESTRATOR_VERSION,
-        "alerts_pushed_to_live": alerts_pushed,
         "region": REGION,
         "api_base_url": API_BASE_URL,
         "api_reachable": api_reachable,
@@ -351,10 +287,6 @@ def run_daily_orchestration(target_date: str, days: int = DEFAULT_DAYS, event: O
     }
 
 
-# When run_all_retailers is true (or dataset_keys list is passed), run for all 5 retailers in one invocation.
-ALL_RETAILER_KEYS = ["raju", "ramesh", "suresh", "kanta", "lakshmi"]
-
-
 def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     today = datetime.now(timezone.utc).date()
     if not isinstance(event, dict):
@@ -364,38 +296,6 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     if not start_date:
         start_date = (today + timedelta(days=1)).isoformat()
     days = max(1, min(int(event.get("days", DEFAULT_DAYS)), 90))
-
-    # Optional: run for multiple retailers in one invocation (e.g. EventBridge daily trigger for all 5).
-    dataset_keys = event.get("dataset_keys")
-    if event.get("run_all_retailers") is True and not dataset_keys:
-        dataset_keys = ALL_RETAILER_KEYS
-    if isinstance(dataset_keys, list) and len(dataset_keys) > 1:
-        results_per_key = []
-        for dk in dataset_keys:
-            dk = str(dk).strip().lower()
-            if not dk:
-                continue
-            try:
-                r = run_daily_orchestration(target_date=start_date, days=days, event={**event, "dataset_key": dk})
-                results_per_key.append({
-                    "dataset_key": dk,
-                    "ok": r.get("ok", True),
-                    "summary_count": r.get("summary_count", 0),
-                    "alerts_pushed_to_live": r.get("alerts_pushed_to_live", False),
-                })
-            except Exception as exc:
-                results_per_key.append({"dataset_key": dk, "ok": False, "error": str(exc)})
-        return {
-            "statusCode": 200,
-            "body": json.dumps({
-                "ok": True,
-                "orchestrator_version": ORCHESTRATOR_VERSION,
-                "target_date": start_date,
-                "days": days,
-                "retailers_run": len(results_per_key),
-                "per_retailer": results_per_key,
-            }),
-        }
 
     try:
         result = run_daily_orchestration(target_date=start_date, days=days, event=event)

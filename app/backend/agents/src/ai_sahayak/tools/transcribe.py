@@ -89,6 +89,7 @@ def transcribe_audio(audio_base64: str, media_type: str = "audio/webm", language
             Media={"MediaFileUri": media_uri},
             MediaFormat=media_format,
             LanguageCode=language_code,
+            OutputBucketName=bucket,
         )
     except Exception as e:
         print(f"Transcribe: start_transcription_job failed: {e}")

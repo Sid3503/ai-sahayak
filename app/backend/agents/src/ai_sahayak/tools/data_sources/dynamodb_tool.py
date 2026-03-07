@@ -10,20 +10,39 @@ _REGION = getattr(settings, "AWS_REGION", "ap-south-1")
 
 
 def _get_resource():
+    # Use same explicit credentials as conversation.py so user_info/stores write to same AWS as conversation_history
+    kwargs = {"region_name": _REGION}
+    if getattr(settings, "AWS_ACCESS_KEY_ID", None) and getattr(settings, "AWS_SECRET_ACCESS_KEY", None):
+        kwargs["aws_access_key_id"] = settings.AWS_ACCESS_KEY_ID
+        kwargs["aws_secret_access_key"] = settings.AWS_SECRET_ACCESS_KEY
     if _ENV == "dev" and os.getenv("DYNAMODB_ENDPOINT_URL"):
-        return boto3.resource(
-            "dynamodb",
-            region_name=_REGION,
-            endpoint_url=os.getenv("DYNAMODB_ENDPOINT_URL"),
-        )
-    return boto3.resource("dynamodb", region_name=_REGION)
+        kwargs["endpoint_url"] = os.getenv("DYNAMODB_ENDPOINT_URL")
+    return boto3.resource("dynamodb", **kwargs)
 
 
 class DynamoDBTool:
     def __init__(self):
-        self.dynamodb = _get_resource()
-        self.user_table = self.dynamodb.Table(settings.USERS_TABLE)
-        self.store_table = self.dynamodb.Table(getattr(settings, "STORES_TABLE", "ai-sahayak-stores"))
+        self._dynamodb = None
+        self._user_table = None
+        self._store_table = None
+    
+    @property
+    def dynamodb(self):
+        if self._dynamodb is None:
+            self._dynamodb = _get_resource()
+        return self._dynamodb
+    
+    @property
+    def user_table(self):
+        if self._user_table is None:
+            self._user_table = self.dynamodb.Table(settings.USERS_TABLE)
+        return self._user_table
+    
+    @property
+    def store_table(self):
+        if self._store_table is None:
+            self._store_table = self.dynamodb.Table(getattr(settings, "STORES_TABLE", "ai-sahayak-stores"))
+        return self._store_table
 
     async def get_store_profile(self, store_id: str):
         """Get store profile by store_id (e.g. store_<user_id>)."""

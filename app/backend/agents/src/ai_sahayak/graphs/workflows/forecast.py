@@ -13,12 +13,31 @@ async def forecast_query_node(state: ConversationState):
     messages = state.get("messages", [])
     user_message = messages[-1].content if messages else "What is the demand forecast?"
     user_id = (state.get("user_context") or {}).get("user_id", "unknown_user")
+    onboarding_data = state.get("onboarding_data", {})
 
     kb_context = retrieve_from_panchang_kb(user_message, max_results=5)
-    dashboard = get_dashboard_data(user_id)
+    
+    # Only fetch dashboard data for known retailers (not web demo users)
+    dashboard = {}
+    if user_id in ["raju", "ramesh", "suresh", "kanta", "lakshmi"]:
+        dashboard = get_dashboard_data(user_id)
+    
+    # Get preferred language
+    preferred_lang = onboarding_data.get("preferred_language", "English").lower()
+    if preferred_lang in ["english", "en"]:
+        lang_instruction = "Reply in English."
+    elif preferred_lang in ["hindi", "hi"]:
+        lang_instruction = "Reply in Hindi (Devanagari script)."
+    elif preferred_lang in ["hinglish"]:
+        lang_instruction = "Reply in Hinglish (Hindi words in Roman script)."
+    else:
+        lang_instruction = "Reply in the user's preferred language."
 
     system_prompt = """You are AI Sahayak, helping an Indian Kirana store owner with demand forecasting and seasonal/festival trends.
-Use the following context to answer. Reply in Hinglish or the user's language; keep it concise and actionable.
+{lang_instruction} Keep it concise and actionable.
+
+## User Profile:
+{user_profile}
 
 ## Knowledge Base (festivals / Panchang / seasonal):
 {kb_context}
@@ -28,8 +47,24 @@ Use the following context to answer. Reply in Hinglish or the user's language; k
 
 If the KB has no relevant festival/season info, say so and give general practical tips for the next 2–4 weeks."""
 
+    # Build user profile
+    user_profile = ""
+    if onboarding_data:
+        name = onboarding_data.get("name")
+        store_name = onboarding_data.get("store_name")
+        location = onboarding_data.get("resolved_location") or onboarding_data.get("location")
+        if name:
+            user_profile += f"Owner: {name}. "
+        if store_name:
+            user_profile += f"Store: {store_name}. "
+        if location:
+            user_profile += f"Location: {location}. "
+    if not user_profile:
+        user_profile = "No user profile available."
+
+    # For web users who just completed onboarding, don't include mock sales data
     store_context = ""
-    if dashboard:
+    if user_id in ["raju", "ramesh", "suresh", "kanta", "lakshmi"] and dashboard:
         store_info = dashboard.get("store_info", {})
         sales = dashboard.get("sales_summary", {})
         inv = dashboard.get("inventory_summary", {})
@@ -41,12 +76,14 @@ If the KB has no relevant festival/season info, say so and give general practica
             store_context += f"Low stock: {inv.get('low_stock', [])}."
 
     if not store_context:
-        store_context = "No store data available yet."
+        store_context = "No sales/inventory data available yet. User just completed onboarding."
 
     try:
         llm = get_llm(temperature=0.2)
         response = await llm.ainvoke([
             SystemMessage(content=system_prompt.format(
+                lang_instruction=lang_instruction,
+                user_profile=user_profile,
                 kb_context=kb_context or "(No festival/season data retrieved.)",
                 store_context=store_context,
             )),

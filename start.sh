@@ -70,9 +70,16 @@ if command -v lsof >/dev/null 2>&1; then
   (lsof -ti :8001 | xargs kill -9 2>/dev/null) || true
   sleep 1
 fi
+# Clear Python cache so app.py changes (e.g. /api/drive-ui, /api/chat-action) are loaded
+rm -rf "$FRIEND_BACKEND/__pycache__" "$FRIEND_BACKEND/*.pyc" 2>/dev/null || true
 echo "Starting FRIEND'S backend (port 8001)..."
 (
   cd "$FRIEND_BACKEND"
+  # Load .env / .env.local so AWS_* are available without exporting in terminal every time
+  for _f in .env .env.local; do
+    [ -f "$_f" ] && set -a && . "./$_f" && set +a
+  done
+  # On EC2/server (so Lambda can reach this API): export AI_SAHAYAK_API_HOST=0.0.0.0 and use --port 80 or put nginx in front.
   # SageMaker DeepAR endpoints per retailer (must already exist in ap-south-1).
   # These env vars are read by app.py via get_deepar_endpoint().
   export AI_SAHAYAK_DEEPAR_ENDPOINT_RAJU="ai-sahayak-deepar-raju-endpoint"

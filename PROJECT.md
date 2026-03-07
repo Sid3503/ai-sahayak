@@ -1,6 +1,6 @@
 # AI Sahayak – Project Overview
 
-Proactive intelligence platform for Indian kirana stores (AWS AI for Bharat Hackathon). One place: what the project does, what works, which code and tech stack do what, and how to run it.
+Proactive intelligence platform for Indian kirana & MSME stores (AWS AI for Bharat Hackathon). One place: what the project does, what works, which code and tech stack do what, and how to run it.
 
 ---
 
@@ -106,8 +106,38 @@ ai-sahayak/
    - Friend’s API: http://localhost:8001  
 
 4. **Check Bedrock / DeepAR:**  
-   http://127.0.0.1:8001/api/model-status?dataset_key=ramesh  
-   Expect `bedrock_ready: true` and `forecast_primary: "DeepAR (SageMaker)"` when configured.
+   After starting the stack, open: **http://127.0.0.1:8001/api/model-status?dataset_key=ramesh**  
+   Expect `bedrock_ready: true` and `forecast_primary: "DeepAR (SageMaker)"` when configured.  
+   **If Bedrock shows "Not Ready":** (1) Put `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_DEFAULT_REGION` in `app/Dashboard/.env.local` (or export them in the same terminal before `./start.sh`). (2) Ensure IAM has **bedrock:InvokeModel** and **bedrock:ListFoundationModels** for the region (e.g. `ap-south-1`).
+
+---
+
+## Where are all the env files? (for your friend)
+
+| Location | File | Purpose |
+|----------|------|--------|
+| **Our website (React)** | `app/frontend/.env` | Create from `app/frontend/.env.example`. Backend URL, Cognito, Control Centre URL. |
+| **Our backend (agents)** | `app/backend/agents/.env` | Create from `app/backend/agents/.env.example`. AWS keys, Bedrock region, MongoDB, Cognito pool ID. |
+| **Friend’s Dashboard** | `app/Dashboard/.env.local` | Optional. Used by friend’s Control Centre frontend (e.g. `VITE_API_PROXY_TARGET`). |
+
+**Copy-paste setup for your friend:**
+
+1. **Frontend (our site)**  
+   ```bash
+   cp app/frontend/.env.example app/frontend/.env
+   # Edit app/frontend/.env: set VITE_AGENT_API_BASE, VITE_COGNITO_*, VITE_CONTROL_CENTRE_URL
+   ```
+
+2. **Backend (our agents)**  
+   ```bash
+   cp app/backend/agents/.env.example app/backend/agents/.env
+   # Edit app/backend/agents/.env: set AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, COGNITO_USER_POOL_ID, MONGODB_URI
+   ```
+
+3. **Friend’s Dashboard**  
+   Uses shell env (e.g. `export AWS_ACCESS_KEY_ID=...`) and optional `app/Dashboard/.env.local` for the Control Centre frontend.
+
+**Note:** `.env` files are gitignored; only `.env.example` is in the repo. Your friend creates `.env` from the example and fills in real values.
 
 ---
 
