@@ -15,6 +15,7 @@
 
 # Node.js
 node_modules/
+.vite/
 npm-debug.log
 yarn-error.log
 dist/

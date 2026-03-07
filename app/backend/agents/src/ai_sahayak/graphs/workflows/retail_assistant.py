@@ -362,6 +362,7 @@ workflow.add_conditional_edges(
         "forecast": "forecast_query_node",
         "image_analysis": "image_analysis_node",
         "alert_query": "alert_query_node",
+        "alert_preferences": "general_chat_node",
         "general_chat": "general_chat_node"
     }
 )

@@ -10,30 +10,65 @@ async def classify_intent_node(state: ConversationState):
     """
     llm = get_llm(temperature=0.1)
     
-    intent_classifier_prompt = """You are an intent classifier for a retail store owner dashboard assistant.
-    Categorize the user query into one of these categories:
-    - sales_query: Questions about sales performance, revenue, trends, daily/monthly sales, business insights, overview summary
-    - pricing_query: Competitor pricing, market rates, margin analysis, price changes, price recommendation, last price run review, "review chahiye"
-    - inventory: Stock levels, inventory management, restocking needs, shelf space
-    - forecast: Demand forecasting, seasonal trends, festival predictions
-    - image_analysis: User uploading a photo of their store shelves or stock for analysis
-    - alert_query: Questions starting with 'what if', or asking about alerts, simulations, festivals, active alerts
-    - alert_preferences: User wants to change alert settings (e.g. "7 din pehle batao", "subah 8 baje bhejo", "9 baje alert chahiye")
-    - general_chat: General business advice, store operations, greetings, non-specific queries
-    
+    intent_classifier_prompt = """You are an intent classifier for an Indian Kirana store dashboard assistant.
+    Categorize the user query into EXACTLY one of these categories:
+
+    - sales_query: Any question about sales, revenue, KPIs, business pulse, overview, performance, "kaisa chal raha", top items, monthly/weekly/daily figures
+    - pricing_query: Price recommendation for a product, margin, market price, competitor pricing, "price kya hoga", "show review", "last price run", price for sugar/atta/oil etc.
+    - inventory: Stock levels, low stock, reorder, restocking, inventory, shelf management
+    - forecast: Demand forecast, seasonal trends, festival stock prediction, next week/month demand
+    - image_analysis: User uploaded a photo of store shelves or products
+    - alert_query: "what if" scenarios, competitor drops price, festival impact simulation, what happens if, "kya hoga agar"
+    - alert_preferences: User wants to CHANGE alert timing/settings (e.g. "7 din pehle batao", "8 baje bhejo")
+    - general_chat: Greetings (hello, hi, namaste), "what can you help", "what can you do", general store advice not covered above
+
+    IMPORTANT RULES:
+    - "KPIs", "business pulse", "overview", "how are my sales", "sales kaisi hain" → sales_query
+    - "show review", "price review" → pricing_query
+    - "what if competitor drops" → alert_query
+    - "hello", "hi", "what can you help" → general_chat
+
     Respond ONLY with the exact category name. No explanations.
-    
+
     Query: {user_message}
     """
     
     user_message = (state["messages"][-1].content or "").strip().lower() if state["messages"] else ""
-    
+    msg_trim = user_message.strip()
+
     # Fast path: if the payload included an image, force image analysis intent
     if state.get("image_path"):
         return {"next_intent": "image_analysis"}
+    # Fast path: greetings only — skip LLM classifier to reduce latency
+    greeting_only = msg_trim in (
+        "hello", "hi", "hey", "hlw", "hii", "namaste", "namaskar", "haan", "ji", "good morning",
+        "good afternoon", "good evening", "good night", "gm", "gn"
+    ) or (len(msg_trim) <= 20 and re.match(r"^(hello|hi|hey|namaste|namaskar|haan)\s*!?\.?$", msg_trim))
+    if greeting_only:
+        return {"next_intent": "general_chat"}
     # Fast path: alert time/days — no LLM needed (works without Bedrock)
     if re.search(r"\d+\s*baje|bhejo|alert\s*(time|chahiye)|din\s*pehle\s*batao", user_message):
         return {"next_intent": "alert_preferences"}
+    # Fast paths (English + Hinglish) to avoid LLM misclassification
+    if any(w in user_message for w in (
+        "what if", "agar kya", "kya hoga agar", "competitor", "price drop", "price gira", "price giraye",
+        "competitor ne", "simulate", "impact kya hoga"
+    )):
+        return {"next_intent": "alert_query"}
+    if any(w in user_message for w in (
+        "kpi", "business pulse", "overview", "sales kaisi", "how are my sales", "sales kaise",
+        "mera overview", "overview batao", "dimaag kya keh raha", "pulse kaisa", "revenue kya",
+        "profit kya", "units kya", "sell through", "margin kya"
+    )):
+        return {"next_intent": "sales_query"}
+    if any(w in user_message for w in (
+        "show review", "price review", "last price run", "price recommendation",
+        "price kya", "atta ka price", "sugar ka price", "chini ka price", "tel ka price", "ghee ka price",
+        "recommend kya", "market price", "margin batao"
+    )):
+        return {"next_intent": "pricing_query"}
+    if any(w in user_message for w in ("forecast", "demand kya", "aage demand", "festival demand")):
+        return {"next_intent": "forecast"}
     
     response = await llm.ainvoke([SystemMessage(content=intent_classifier_prompt.format(user_message=user_message))])
     

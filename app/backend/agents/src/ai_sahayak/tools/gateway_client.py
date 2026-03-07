@@ -33,10 +33,8 @@ class AgentCoreGatewayClient:
             return await self._local_fallback(tool_name, input_data)
 
     async def _local_fallback(self, tool_name: str, input_data: dict) -> dict:
-        # Mocking local fallback for demonstration
-        if "sales" in tool_name:
-            return {"status": "success", "data": "Local sales data fallback"}
-        return {"status": "error", "message": "Tool not found in fallback"}
+        # No mock data — all data must come from Dashboard only
+        return {"status": "error", "message": "Data only from Dashboard. Control Centre connect karein, phir try karein."}
 
 
 gateway_client = AgentCoreGatewayClient()

@@ -50,14 +50,42 @@ def _fetch_price_from_dashboard(dataset_key: str, sku_id: Optional[str] = None) 
         return None
 
 
+# Hinglish / Hindi product keywords -> English product terms for matching SKU item_name
+_HINGLISH_PRODUCT_MAP = {
+    "atta": "atta wheat",
+    "aata": "atta wheat",
+    "chini": "sugar",
+    "sugar": "sugar",
+    "cheeni": "sugar",
+    "tel": "oil",
+    "oil": "oil",
+    "refined": "oil",
+    "ghee": "ghee",
+    "daal": "dal",
+    "dal": "dal",
+    "chawal": "rice",
+    "rice": "rice",
+    "namak": "salt",
+    "salt": "salt",
+    "chai": "tea",
+    "tea": "tea",
+    "maida": "maida flour",
+}
+
+
 def _resolve_sku_from_message(message_text: str, skus: list) -> Optional[str]:
-    """If user said e.g. 'sugar' or 'atta', return the matching sku_id from the list. skus = [{sku_id, item_name}, ...]."""
+    """If user said e.g. 'sugar', 'atta', 'chini ka price', return the matching sku_id. Supports Hinglish."""
     if not message_text or not skus:
         return None
     text = (message_text or "").strip().lower()
-    # Extract likely product words (skip common words)
-    stop = {"ka", "ki", "ke", "ko", "batao", "chahiye", "review", "price", "recommendation", "kya", "kitna", "mein", "the", "for", "run"}
+    stop = {"ka", "ki", "ke", "ko", "batao", "chahiye", "review", "price", "recommendation", "kya", "kitna", "mein", "the", "for", "run", "dikhao", "bata"}
     words = [w for w in re.findall(r"[a-z0-9]+", text) if len(w) > 1 and w not in stop]
+    # Expand with Hinglish synonyms so "chini" matches "Sugar 1kg"
+    expanded = set(words)
+    for w in words:
+        if w in _HINGLISH_PRODUCT_MAP:
+            expanded.update(_HINGLISH_PRODUCT_MAP[w].split())
+    words = list(expanded)
     for s in skus:
         item = (s.get("item_name") or "").strip().lower()
         sid = (s.get("sku_id") or "").strip()
@@ -149,15 +177,20 @@ async def pricing_query_node(state: ConversationState):
     market = selection.get("market_price")
 
     if not raw_short or len(raw_short) > 380 or "Executive Summary" in raw_short or "Key Numbers" in raw_short:
-        # Build short Hinglish one-liner like the Wheat Atta response
+        # Build markdown table for easy reading in chat
         rec_val = float(rec) if rec is not None else None
-        parts = [f"{item} ke liye engine recommend karta hai ₹{rec_val:.2f}" if rec_val is not None else f"{item} ke liye price run ho chuka."]
+        lines = [f"**{item}** — Price recommendation", "", "| Metric | Value |", "|--------|-------|"]
+        if rec_val is not None:
+            lines.append(f"| Recommended | ₹{rec_val:.2f} |")
         if margin is not None:
-            parts.append(f"margin ~{float(margin):.1f}%")
+            lines.append(f"| Expected margin | {float(margin):.1f}% |")
         if market is not None:
-            parts.append(f"market around ₹{float(market):.2f}")
-        short_text = ". ".join(parts) + ". Detail ke liye Dashboard > Price tab dekhein."
+            lines.append(f"| Market price | ₹{float(market):.2f} |")
+        lines.append("")
+        lines.append("Detail ke liye Dashboard > Price tab dekhein.")
+        short_text = "\n".join(lines)
     else:
+        # If dashboard returned short text, wrap in a small table if it contains numbers
         short_text = raw_short
 
     # Drive dashboard: price vs review from user message; include sku_id and dataset_key so dashboard selects the right SKU

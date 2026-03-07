@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react'
-import { RajuDay } from '../components/RajuDay'
+import { useEffect, useRef, useState } from 'react'
+import { RajuDay, type RajuDayHandle } from '../components/RajuDay'
 import { WelcomeCard } from './WelcomeCard'
 import { formatWelcomeName, getWelcomeMessage } from './utils'
 import type { DashboardProps } from './types'
@@ -20,20 +20,33 @@ const defaultModelStatus: ModelStatus = {
   deepar_endpoint_configured: true,
 }
 
+const DEMO_DISPLAY_NAMES = ['raju', 'ramesh', 'suresh', 'kanta', 'lakshmi']
+
 export function Dashboard({ welcomeName, onBackToChat: _onBackToChat, onLogout }: DashboardProps) {
-  const [welcomeCardDismissed, setWelcomeCardDismissed] = useState(false)
+  const displayName = formatWelcomeName(welcomeName)
+
+  // Initialise from sessionStorage so when user comes back to dashboard they don't see welcome again (once per user/session)
+  const [welcomeCardDismissed, setWelcomeCardDismissed] = useState(() => {
+    if (typeof window === 'undefined') return false
+    const name = formatWelcomeName(welcomeName)
+    if (!name) return false
+    const key = `ai_sahayak_dashboard_welcome_dismissed_${name.toLowerCase().replace(/\s+/g, '_')}`
+    return window.sessionStorage.getItem(key) === '1'
+  })
+
   const [panelOpen, setPanelOpen] = useState(false)
   const [modelStatus, setModelStatus] = useState<ModelStatus | null>(null)
+  const liveAlertsRef = useRef<RajuDayHandle>(null)
 
-  const displayName = formatWelcomeName(welcomeName)
   const welcome = displayName ? getWelcomeMessage(displayName, true) : null
   const showWelcomeCard = welcome !== null && !welcomeCardDismissed
 
+  // When displayName changes (e.g. switch user), sync dismissed state from sessionStorage
   useEffect(() => {
-    if (typeof window === 'undefined') return
-    const stored = window.sessionStorage.getItem('ai_sahayak_dashboard_welcome_dismissed')
-    if (stored === '1') setWelcomeCardDismissed(true)
-  }, [])
+    if (!displayName || typeof window === 'undefined') return
+    const key = `ai_sahayak_dashboard_welcome_dismissed_${displayName.toLowerCase().replace(/\s+/g, '_')}`
+    setWelcomeCardDismissed(window.sessionStorage.getItem(key) === '1')
+  }, [displayName])
 
   useEffect(() => {
     const datasetKey = displayName?.toLowerCase() || 'raju'
@@ -45,8 +58,10 @@ export function Dashboard({ welcomeName, onBackToChat: _onBackToChat, onLogout }
 
   const handleDismissWelcome = () => {
     setWelcomeCardDismissed(true)
-    if (typeof window !== 'undefined')
-      window.sessionStorage.setItem('ai_sahayak_dashboard_welcome_dismissed', '1')
+    if (typeof window !== 'undefined' && displayName) {
+      const key = `ai_sahayak_dashboard_welcome_dismissed_${displayName.toLowerCase().replace(/\s+/g, '_')}`
+      window.sessionStorage.setItem(key, '1')
+    }
   }
 
   return (
@@ -55,7 +70,7 @@ export function Dashboard({ welcomeName, onBackToChat: _onBackToChat, onLogout }
       style={{
         height: '100%',
         minHeight: 0,
-        overflow: 'hidden',
+        overflow: showWelcomeCard ? 'visible' : 'hidden',
         position: 'relative',
         width: '100%',
       }}
@@ -87,7 +102,7 @@ export function Dashboard({ welcomeName, onBackToChat: _onBackToChat, onLogout }
                 minWidth: 0,
               }}
             >
-              {/* Header row: Command centre | Model Status | Live Alerts / Logout */}
+              {/* Header row: Command centre | Model Status | Live Alerts | Logout */}
               <div
                 className="flex flex-shrink-0 items-center justify-between gap-3"
                 style={{
@@ -203,60 +218,66 @@ export function Dashboard({ welcomeName, onBackToChat: _onBackToChat, onLogout }
             </div>
           </div>
 
-          {/* ── RIGHT: Live Alerts panel as overlay; hidden on first load / when closed ── */}
-          <div
-            role="dialog"
-            aria-label="Live Alerts"
-            aria-hidden={!panelOpen}
-            style={{
-              position: 'absolute',
-              top: 0,
-              right: 0,
-              bottom: 0,
-              width: PANEL_WIDTH,
-              transform: panelOpen ? 'translateX(0)' : 'translateX(100%)',
-              transition: 'transform 280ms cubic-bezier(0.32, 0.72, 0, 1)',
-              visibility: panelOpen ? 'visible' : 'hidden',
-              willChange: 'transform',
-              flexShrink: 0,
-              display: 'flex',
-              flexDirection: 'column',
-              background: '#fff',
-              boxShadow: '-8px 0 32px rgba(0,0,0,0.12)',
-              zIndex: 40,
-              overflow: 'hidden',
-              pointerEvents: panelOpen ? 'auto' : 'none',
-            }}
-          >
+          {/* Live Alerts panel — only in DOM when open; overlays from right, dashboard does not move */}
+          {panelOpen && (
             <div
+              role="dialog"
+              aria-label="Live Alerts"
+              className="dashboard-panel-enter"
               style={{
-                flexShrink: 0,
+                position: 'absolute',
+                top: 0,
+                right: 0,
+                bottom: 0,
+                width: PANEL_WIDTH,
+                zIndex: 40,
                 display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                padding: '12px 16px',
-                borderBottom: '1px solid #e5e7eb',
-                background: 'linear-gradient(135deg,#075e54,#0d9488)',
+                flexDirection: 'column',
+                background: '#fff',
+                boxShadow: '-8px 0 32px rgba(0,0,0,0.12)',
+                overflow: 'hidden',
               }}
             >
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <svg width={18} height={18} fill="none" stroke="#fff" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" /></svg>
-                <span style={{ fontWeight: 800, fontSize: '0.95rem', color: '#fff' }}>Live Alerts</span>
-                <span style={{ fontSize: '0.65rem', color: 'rgba(255,255,255,0.7)', fontWeight: 600 }}>— My day</span>
-              </div>
-              <button
-                type="button"
-                onClick={() => setPanelOpen(false)}
-                aria-label="Close"
-                className="rounded-lg p-2 text-white/90 hover:bg-white/20 transition-colors"
+              <div
+                style={{
+                  flexShrink: 0,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  padding: '12px 16px',
+                  borderBottom: '1px solid #e5e7eb',
+                  background: 'linear-gradient(135deg,#075e54,#0d9488)',
+                }}
               >
-                <svg width={18} height={18} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" /></svg>
-              </button>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <svg width={18} height={18} fill="none" stroke="#fff" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" /></svg>
+                  <span style={{ fontWeight: 800, fontSize: '0.95rem', color: '#fff' }}>Live Alerts</span>
+                  <span style={{ fontSize: '0.65rem', color: 'rgba(255,255,255,0.7)', fontWeight: 600 }}>— My day</span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <button
+                    type="button"
+                    onClick={() => liveAlertsRef.current?.clearChat()}
+                    className="rounded-lg px-2.5 py-1.5 text-white/90 hover:bg-white/20 transition-colors text-xs font-semibold"
+                    aria-label="Clear chat"
+                  >
+                    Clear chat
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPanelOpen(false)}
+                    aria-label="Close"
+                    className="rounded-lg p-2 text-white/90 hover:bg-white/20 transition-colors"
+                  >
+                    <svg width={18} height={18} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" /></svg>
+                  </button>
+                </div>
+              </div>
+              <div style={{ flex: 1, minHeight: 0, overflow: 'hidden' }}>
+                <RajuDay ref={liveAlertsRef} welcomeName={welcomeName} onClose={() => setPanelOpen(false)} />
+              </div>
             </div>
-            <div style={{ flex: 1, minHeight: 0, overflow: 'hidden' }}>
-              <RajuDay welcomeName={welcomeName} onClose={() => setPanelOpen(false)} />
-            </div>
-          </div>
+          )}
         </div>
       )}
     </main>

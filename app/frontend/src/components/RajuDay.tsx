@@ -1,4 +1,6 @@
-import { useEffect, useRef, useState } from 'react'
+import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react'
+import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
 import { formatWelcomeName, getWelcomeMessage } from '../dashboard'
 
 /** Today's date for WP UI date pill */
@@ -6,13 +8,37 @@ function getTodayDatePill(): string {
   return new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }).toUpperCase()
 }
 
-/** Time-of-day greeting in IST */
+/** IST hour (0–23) for time-based copy */
+function getISTHour(): number {
+  return new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Kolkata' })).getHours()
+}
+
+/** Time-of-day greeting in IST — morning / afternoon / evening / night */
 function getTimeGreeting(): string {
-  const ist = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Kolkata' }))
-  const h = ist.getHours()
-  if (h < 12) return 'Good morning'
-  if (h < 17) return 'Good afternoon'
-  return 'Good evening'
+  const h = getISTHour()
+  if (h >= 5 && h < 12) return 'Good morning'
+  if (h >= 12 && h < 17) return 'Good afternoon'
+  if (h >= 17 && h < 21) return 'Good evening'
+  return 'Good night'
+}
+
+/** Dynamic welcome line for Live Alerts — time-based + varied closing so it feels human, not prefilled */
+function getLiveWelcomeMessage(displayName: string | null): string {
+  const h = getISTHour()
+  const greeting = getTimeGreeting().toLowerCase()
+  const namePart = displayName ? `${displayName} bhai, ` : ''
+
+  const closings = [
+    'Jo bhi chahiye bolo — main yahin hoon.',
+    'Koi sawal ho to seedha poochho.',
+    'Sales, stock, price — kuch bhi poochh sakte ho.',
+    'Bolo, kaise help karun?',
+    'Jab bhi zarurat ho, message karo.',
+  ]
+  const idx = (h * 60 + new Date().getMinutes()) % closings.length
+  const closing = closings[idx]
+
+  return `${namePart}${greeting}. ${closing}`
 }
 
 /** IST time string for message/status bar — e.g. "2:45 PM" */
@@ -41,6 +67,10 @@ export type RajuDayProps = {
   onClose: () => void
 }
 
+export type RajuDayHandle = {
+  clearChat: () => void
+}
+
 export type DayMessage = {
   from: 'user' | 'bot' | 'alert'
   text: string
@@ -49,9 +79,22 @@ export type DayMessage = {
   event_confidence_score?: number
 }
 
-const INITIAL_LIVE_MESSAGES: DayMessage[] = []
+function getStoredMessages(retailerKey: string): DayMessage[] {
+  if (typeof window === 'undefined') return []
+  try {
+    const key = `ai_sahayak_live_messages_${retailerKey}`
+    const raw = window.sessionStorage.getItem(key)
+    if (raw) {
+      const parsed = JSON.parse(raw)
+      if (Array.isArray(parsed) && parsed.length > 0) return parsed
+    }
+  } catch {
+    // ignore
+  }
+  return []
+}
 
-export function RajuDay({ welcomeName, onClose }: RajuDayProps) {
+const RajuDayComponent = ({ welcomeName, onClose }: RajuDayProps, ref: React.Ref<RajuDayHandle>) => {
   const liveClock = useLiveClock()
   const displayName = formatWelcomeName(welcomeName)
   const retailerKey = (welcomeName || '').toString().trim().toLowerCase() || 'raju'
@@ -63,42 +106,40 @@ export function RajuDay({ welcomeName, onClose }: RajuDayProps) {
   }, [displayName, welcome])
 
   const agentApiBase = (import.meta as any).env?.VITE_AGENT_API_BASE || 'http://localhost:8000'
-  const [messages, setMessages] = useState<DayMessage[]>(INITIAL_LIVE_MESSAGES)
+  const [messages, setMessages] = useState<DayMessage[]>(() => getStoredMessages(retailerKey))
   const [input, setInput] = useState('')
   const [sending, setSending] = useState(false)
   const [recording, setRecording] = useState(false)
   const [playingTtsIdx, setPlayingTtsIdx] = useState<number | null>(null)
+  const [ttsError, setTtsError] = useState<string | null>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const seenAlertIdsRef = useRef<Set<string>>(new Set())
   const audioChunksRef = useRef<Blob[]>([])
   const mediaRecorderRef = useRef<MediaRecorder | null>(null)
   const ttsAudioRef = useRef<HTMLAudioElement | null>(null)
 
-  // Seed welcome message when no messages yet (greet the corresponding customer in WP UI)
+  // Seed welcome message only when no messages yet — dynamic by time of day + varied closing
   useEffect(() => {
-    if (typeof window === 'undefined') return
-    const key = `ai_sahayak_live_messages_${retailerKey}`
-    try {
-      const raw = window.sessionStorage.getItem(key)
-      if (raw) {
-        const parsed = JSON.parse(raw)
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          setMessages(parsed)
-          return
-        }
-      }
-      const greeting = getTimeGreeting()
-      const welcomeText = displayName
-        ? `${displayName} bhai, ${greeting.toLowerCase()}. Jo bhi chahiye bolo — main yahin hoon.`
-        : `${greeting}. Jo chahiye bolo, main yahin hoon.`
-      setMessages([{ from: 'bot', text: welcomeText }])
-    } catch {
-      const welcomeText = displayName
-        ? `${displayName} bhai, jo chahiye bolo.`
-        : "Jo chahiye bolo."
-      setMessages([{ from: 'bot', text: welcomeText }])
-    }
+    setMessages((prev) => {
+      if (prev.length > 0) return prev
+      const welcomeText = getLiveWelcomeMessage(displayName || null)
+      return [{ from: 'bot' as const, text: welcomeText }]
+    })
   }, [retailerKey, displayName])
+
+  const clearChat = () => {
+    const welcomeText = getLiveWelcomeMessage(displayName || null)
+    setMessages([{ from: 'bot' as const, text: welcomeText }])
+    if (typeof window !== 'undefined') {
+      try {
+        window.sessionStorage.removeItem(`ai_sahayak_live_messages_${retailerKey}`)
+      } catch {
+        // ignore
+      }
+    }
+  }
+
+  useImperativeHandle(ref, () => ({ clearChat }), [retailerKey, displayName])
 
   useEffect(() => {
     if (typeof window === 'undefined') return
@@ -149,6 +190,7 @@ export function RajuDay({ welcomeName, onClose }: RajuDayProps) {
     const text = (overrideText ?? input.trim()).trim()
     if (!text || sending) return
     if (!overrideText) setInput('')
+    setTtsError(null)
     setMessages((prev) => [...prev, { from: 'user', text }])
     setSending(true)
     try {
@@ -248,17 +290,39 @@ export function RajuDay({ welcomeName, onClose }: RajuDayProps) {
     else startVoiceRecording()
   }
 
+  /** Strip markdown so Polly speaks plain text (no "pipe pipe Metric", "asterisk asterisk", etc.) */
+  function stripMarkdownForTts(raw: string): string {
+    let s = raw
+      .replace(/\*\*/g, '')
+      .replace(/\|/g, ' ')
+      .replace(/\n\s*\|/g, '. ')
+      .replace(/\r\n/g, ' ')
+      .replace(/\n/g, ' ')
+    while (s.includes('  ')) s = s.replace(/  +/g, ' ')
+    return s.trim()
+  }
+
   async function playTts(text: string, msgIdx: number) {
     if (!text.trim() || playingTtsIdx !== null) return
     setPlayingTtsIdx(msgIdx)
+    setTtsError(null)
+    const plainText = stripMarkdownForTts(text)
+    if (!plainText) {
+      setPlayingTtsIdx(null)
+      return
+    }
     try {
       const res = await fetch(`${agentApiBase}/v1/tts`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: text.trim(), language_code: 'hi-IN' }),
+        body: JSON.stringify({ text: plainText, language_code: 'hi-IN' }),
       })
-      if (!res.ok) throw new Error('TTS failed')
+      if (!res.ok) {
+        const errBody = await res.text()
+        throw new Error(res.status === 503 ? 'TTS service unavailable' : errBody || `TTS failed (${res.status})`)
+      }
       const data = await res.json()
+      if (!data?.audio_base64) throw new Error('No audio in response')
       const binary = atob(data.audio_base64)
       const bytes = new Uint8Array(binary.length)
       for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i)
@@ -269,8 +333,9 @@ export function RajuDay({ welcomeName, onClose }: RajuDayProps) {
       audio.onended = () => { URL.revokeObjectURL(url); setPlayingTtsIdx(null) }
       audio.onerror = () => { URL.revokeObjectURL(url); setPlayingTtsIdx(null) }
       await audio.play()
-    } catch {
+    } catch (e) {
       setPlayingTtsIdx(null)
+      setTtsError(e instanceof Error ? e.message : 'Playback failed')
     }
   }
 
@@ -360,10 +425,32 @@ export function RajuDay({ welcomeName, onClose }: RajuDayProps) {
                       </div>
                     ) : (
                       <div style={{ maxWidth: '86%', borderRadius: msg.from === 'user' ? '8px 8px 2px 8px' : '8px 8px 8px 2px', padding: '6px 9px 4px', background: msg.from === 'user' ? '#d9fdd3' : '#ffffff', color: '#111b21', fontSize: '0.73rem', lineHeight: 1.42, wordBreak: 'break-word' as const, boxShadow: '0 1px 2px rgba(0,0,0,0.12)' }}>
-                        <span style={{ display: 'block', whiteSpace: 'pre-wrap' }}>{msg.text}</span>
+                        {msg.from === 'bot' ? (
+                          <div className="chat-markdown" style={{ overflowX: 'auto' }}>
+                            <ReactMarkdown
+                              remarkPlugins={[remarkGfm]}
+                              components={{
+                                p: ({ children }) => <p style={{ margin: '0 0 6px 0', fontSize: '0.73rem' }}>{children}</p>,
+                                strong: ({ children }) => <strong style={{ fontWeight: 700, color: '#111b21' }}>{children}</strong>,
+                                table: ({ children }) => <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: 6, fontSize: '0.7rem' }}>{children}</table>,
+                                thead: ({ children }) => <thead>{children}</thead>,
+                                tbody: ({ children }) => <tbody>{children}</tbody>,
+                                tr: ({ children }) => <tr>{children}</tr>,
+                                th: ({ children }) => <th style={{ textAlign: 'left', padding: '4px 8px', borderBottom: '1px solid #e5e7eb', fontWeight: 600 }}>{children}</th>,
+                                td: ({ children }) => <td style={{ padding: '4px 8px', borderBottom: '1px solid #f3f4f6' }}>{children}</td>,
+                                ul: ({ children }) => <ul style={{ margin: '0 0 6px 0', paddingLeft: 18 }}>{children}</ul>,
+                                li: ({ children }) => <li style={{ marginBottom: 2 }}>{children}</li>,
+                              }}
+                            >
+                              {msg.text}
+                            </ReactMarkdown>
+                          </div>
+                        ) : (
+                          <span style={{ display: 'block', whiteSpace: 'pre-wrap' }}>{msg.text}</span>
+                        )}
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 3, marginTop: 3, flexWrap: 'wrap' }}>
                           {msg.from === 'bot' && msg.text.trim() && (
-                            <button type="button" onClick={() => playingTtsIdx === i ? stopTts() : playTts(msg.text, i)} title={playingTtsIdx === i ? 'Stop' : 'Play (Polly)'} style={{ padding: 2, background: 'none', border: 'none', cursor: 'pointer', color: '#667781', display: 'flex' }} aria-label={playingTtsIdx === i ? 'Stop' : 'Play message'}><svg style={{ width: 14, height: 14 }} fill="currentColor" viewBox="0 0 24 24">{playingTtsIdx === i ? <path d="M6 6h12v12H6z" /> : <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z" />}</svg></button>
+                            <button type="button" onClick={() => { setTtsError(null); playingTtsIdx === i ? stopTts() : playTts(msg.text, i) }} title={playingTtsIdx === i ? 'Stop' : 'Play (Polly)'} style={{ padding: 2, background: 'none', border: 'none', cursor: 'pointer', color: playingTtsIdx === i ? '#0ea5e9' : '#667781', display: 'flex' }} aria-label={playingTtsIdx === i ? 'Stop' : 'Play message'}><svg style={{ width: 14, height: 14 }} fill="currentColor" viewBox="0 0 24 24">{playingTtsIdx === i ? <path d="M6 6h12v12H6z" /> : <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z" />}</svg></button>
                           )}
                           <span style={{ fontSize: '0.5rem', color: '#667781' }}>{msg.time ?? formatISTTime(new Date())}</span>
                           {msg.from === 'user' && (
@@ -389,6 +476,11 @@ export function RajuDay({ welcomeName, onClose }: RajuDayProps) {
               )}
 
               <div ref={messagesEndRef} />
+              {ttsError && (
+                <p style={{ fontSize: '0.65rem', color: '#b45309', background: '#fef3c7', padding: '4px 8px', margin: '4px 8px 0', borderRadius: 6 }} role="alert">
+                  {ttsError}
+                </p>
+              )}
             </div>
 
             <div style={{ background: '#f0f2f5', borderTop: '1px solid #e9edef', padding: '7px 8px', flexShrink: 0, display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -428,3 +520,5 @@ export function RajuDay({ welcomeName, onClose }: RajuDayProps) {
     </main>
   )
 }
+
+export const RajuDay = forwardRef<RajuDayHandle, RajuDayProps>(RajuDayComponent)

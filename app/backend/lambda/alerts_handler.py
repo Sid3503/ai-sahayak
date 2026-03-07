@@ -245,6 +245,9 @@ def _alerts_webhook_url():
     return f"{base}/v1/alerts/incoming"
 
 
+WEBHOOK_TIMEOUT_SECS = 15  # Lambda must reach BACKEND_WEBHOOK_URL; increase if backend is slow or far
+
+
 def post_to_webhook(webhook_url, payload):
     try:
         req = urllib.request.Request(
@@ -253,7 +256,7 @@ def post_to_webhook(webhook_url, payload):
             headers={"Content-Type": "application/json"},
             method="POST",
         )
-        with urllib.request.urlopen(req, timeout=5) as r:
+        with urllib.request.urlopen(req, timeout=WEBHOOK_TIMEOUT_SECS) as r:
             return 200 <= r.status < 300
     except Exception as e:
         print(f"Webhook POST failed: {e}")
@@ -276,6 +279,31 @@ def _check_change_calendar_open() -> bool:
 
 
 def lambda_handler(event, context):
+    event = event or {}
+    # Test mode: send one demo alert to raju so you can verify webhook + My day chat without DynamoDB/S3.
+    # In Lambda console: Test with event {"test_send_demo_alert": true}
+    if event.get("test_send_demo_alert") is True:
+        webhook_url = _alerts_webhook_url()
+        if not webhook_url:
+            return {"statusCode": 400, "body": json.dumps({"error": "BACKEND_WEBHOOK_URL not set"})}
+        demo_payload = {
+            "user_id": "raju",
+            "text": "🎉 Test alert from Lambda — Raju Bhai, ye message My day chat mein dikhna chahiye! Webhook sahi kaam kar raha hai.",
+            "platform": "whatsapp",
+            "is_alert": True,
+            "alert_type": "test",
+            "event_confidence_score": 100,
+        }
+        sent = post_to_webhook(webhook_url, demo_payload)
+        return {
+            "statusCode": 200,
+            "body": json.dumps({
+                "test_send_demo_alert": True,
+                "webhook_sent": sent,
+                "message": "Open My day, select Raju — alert should appear within 30s.",
+            }),
+        }
+
     if not CALENDAR_S3_BUCKET:
         print("ERROR: CALENDAR_S3_BUCKET env var not set")
         return {"statusCode": 400, "body": "CALENDAR_S3_BUCKET not set"}

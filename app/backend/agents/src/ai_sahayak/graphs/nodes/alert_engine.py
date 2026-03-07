@@ -1,23 +1,32 @@
 from langchain_core.messages import AIMessage
 from ai_sahayak.graphs.state.conversation import ConversationState
-from ai_sahayak.monitoring.alerts import AlertManager
+from ai_sahayak.tools.data_sources.dashboard_data_tool import get_dashboard_data
+
 
 async def alert_engine_node(state: ConversationState):
     """
-    Evaluates current business context and dispatches proactive alerts.
+    Proactive alerts from Dashboard only — no mock. Shows first alert from Dashboard /api/kpis if any.
     """
-    alert_manager = AlertManager()
     user_context = state.get("user_context", {})
-    store_id = user_context.get("store_id", "mock_store_123")
+    user_id = (user_context.get("user_id") or "raju").strip().lower()
+    data = get_dashboard_data(user_id)
 
-    # In a full proactive engine, a scheduler would trigger this, or it would run async during a user session.
-    # We simulate generating an alert for the user.
-    alert = await alert_manager.generate_mock_festival_alert(store_id)
-
-    message = f"🚨 **Alert:** {alert.title}\n{alert.message}"
-
+    if not data.get("from_dashboard") or not data.get("alerts"):
+        return {
+            "messages": [AIMessage(content="Abhi koi naya alert nahi hai. Dashboard se data aate hi bataunga.")],
+            "current_step": "alert_delivered",
+            "alert_suggested_actions": [],
+        }
+    alerts = data.get("alerts", [])
+    first = alerts[0]
+    if isinstance(first, dict):
+        title = first.get("title") or first.get("message", "Alert")
+        message = first.get("message") or first.get("title", "")
+    else:
+        title, message = "Alert", str(first)
+    msg_text = f"**{title}**\n{message}" if message else f"**{title}**"
     return {
-        "messages": [AIMessage(content=message)],
+        "messages": [AIMessage(content=msg_text)],
         "current_step": "alert_delivered",
-        "alert_suggested_actions": alert.suggested_actions
+        "alert_suggested_actions": first.get("actions", []) if isinstance(first, dict) else [],
     }

@@ -1,84 +1,59 @@
-import json
-import boto3
 from langchain_core.messages import AIMessage, SystemMessage
 from ai_sahayak.graphs.state.conversation import ConversationState
 from ai_sahayak.tools.llm.bedrock_client import get_llm
-from ai_sahayak.config.settings import settings
+from ai_sahayak.tools.data_sources.dashboard_data_tool import get_dashboard_data
 
-bedrock_runtime = boto3.client("bedrock-agent-runtime", region_name=settings.BEDROCK_REGION)
 
 async def whatif_simulator_node(state: ConversationState):
     """
-    Evaluates business scenarios using Bedrock AgentCore Code Interpreter.
-    LLM (Nova Lite / config) generates the Python calculation logic, and Code Interpreter executes it.
+    Evaluates what-if business scenarios using the project LLM (Nova Lite).
+    No Code Interpreter — uses real store data and a single LLM call for Hinglish what-if answers.
     """
-    llm = get_llm(model_id=settings.REASONING_MODEL_ID, temperature=0.1)
+    llm = get_llm(temperature=0.7)
 
     messages = state.get("messages", [])
     last_query = messages[-1].content if messages else "No query provided."
     onboarding = state.get("onboarding_data", {})
+    user_context = state.get("user_context") or {}
+    user_id = (user_context.get("user_id") or "raju").strip().lower()
 
-    code_generation_prompt = f"""
-    You are a financial analyst for an Indian Kirana store.
-    Store Context: {json.dumps(onboarding)}
-    User Question: "{last_query}"
+    dashboard = get_dashboard_data(user_id) if user_id not in ("unknown_user",) else {}
+    if not dashboard.get("from_dashboard"):
+        name_ref = f"{onboarding.get('name', '').split()[0]} bhai" if onboarding.get("name") else "bhai"
+        return {
+            "messages": [AIMessage(content=f"What-if ke liye Dashboard se data chahiye {name_ref}. Control Centre connect karein, phir poochhen.")],
+            "current_step": "simulator_complete",
+        }
+    sales = dashboard.get("sales_summary", {}) or {}
+    owner_name = onboarding.get("name", "").split()[0] if onboarding.get("name") else ""
+    name_ref = f"{owner_name} bhai" if owner_name else "bhai"
+    store_context = ""
+    if sales.get("today"):
+        store_context += f"Today's sales: ₹{sales['today']:,.0f}. "
+    if sales.get("top_items"):
+        store_context += f"Top items: {', '.join(sales['top_items'][:3])}. "
+    if not store_context.strip():
+        return {
+            "messages": [AIMessage(content=f"What-if ke liye Dashboard pe sales data chahiye {name_ref}. Control Centre se data aane do, phir poochhen.")],
+            "current_step": "simulator_complete",
+        }
 
-    Write a Python script to simulate this scenario.
-    Rules:
-    - Use only standard math library.
-    - Define variables for current and projected values.
-    - PRINT a final summary of the impact.
-    - DO NOT include markdown blocks. JUST the python code.
-    """
-
-    code_response = await llm.ainvoke([SystemMessage(content=code_generation_prompt)])
-    generated_code = code_response.content.strip()
-
-    if "```python" in generated_code:
-        generated_code = generated_code.split("```python")[1].split("```")[0].strip()
-    elif "```" in generated_code:
-        generated_code = generated_code.split("```")[1].strip()
-
+    prompt = (
+        f"You are AI Sahayak helping {name_ref}, a Kirana store owner.\n"
+        f"Store data (from Dashboard only — use ONLY this): {store_context.strip()}\n"
+        f"User asks: '{last_query}'\n\n"
+        "Use ONLY the data above. Reply in simple Hinglish, easy to understand. Put key numbers in a **markdown table** (e.g. | Scenario | Impact |) or **bold labels**. One short sentence after. No code, no long paragraph, no fancy AI English — sound like a local friend."
+    )
     try:
-        interpreter_model = "anthropic.claude-3-5-sonnet-20241022-v2:0"
-
-        response = bedrock_runtime.invoke_inline_agent(
-            foundationModel=interpreter_model,
-            instruction="You are a financial calculator. Execute the provided python code and summarize the result.",
-            sessionId=state.get("user_context", {}).get("user_id", "sim_session")[:36],
-            actionGroups=[
-                {
-                    "actionGroupName": "CodeInterpreter",
-                    "parentActionGroupSignature": "AMAZON.CodeInterpreter"
-                }
-            ],
-            inlineSessionState={
-                "sessionAttributes": {
-                    "code": generated_code
-                }
-            },
-            inputText=f"Please execute the following python code to analyze this scenario: {last_query}"
-        )
-
-        execution_output = ""
-        for event in response.get("completion", []):
-            if "chunk" in event:
-                execution_output += event["chunk"].get("bytes", b"").decode("utf-8")
-            elif "trace" in event:
-                trace = event["trace"].get("trace", {})
-                if "orchestrationTrace" in trace:
-                    orch = trace["orchestrationTrace"]
-                    if "observation" in orch and "codeInterpreterInvocationOutput" in orch["observation"]:
-                        ci_output = orch["observation"]["codeInterpreterInvocationOutput"]
-                        execution_output += ci_output.get("executionOutput", "")
-
-        reply_message = f"🧪 **Simulation Results (AgentCore Interpreter)**\n\n{execution_output or 'Calculation completed successfully. (No direct output string captured)'}"
-
+        response = await llm.ainvoke([SystemMessage(content=prompt)])
+        reply_message = (response.content or "").strip()
     except Exception as e:
-        print(f"Code Interpreter Error: {e}")
-        reply_message = f"I've calculated the potential impact using a simulation:\n\n{code_response.content}"
+        print(f"[WhatIf] LLM failed: {e}")
+        reply_message = "Abhi what-if run nahi ho paya. Thodi der baad try karein."
+    if not reply_message:
+        reply_message = "Abhi what-if run nahi ho paya. Thodi der baad try karein."
 
     return {
         "messages": [AIMessage(content=reply_message)],
-        "current_step": "simulator_complete"
+        "current_step": "simulator_complete",
     }

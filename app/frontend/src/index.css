@@ -191,9 +191,10 @@ a,
   animation: shell-scrollbar-in 0.4s cubic-bezier(0.22, 1, 0.36, 1) 0.12s forwards;
 }
 .shell-reveal-content {
-  opacity: 0;
-  transform: translateY(24px);
-  animation: shell-content-fall 0.6s cubic-bezier(0.22, 1, 0.36, 1) 0.15s forwards;
+  opacity: 1;
+  transform: none;
+  animation: shell-content-fall 0.6s cubic-bezier(0.22, 1, 0.36, 1) 0.15s both;
+  animation-iteration-count: 1;
 }
 .shell-reveal-tricolor { opacity: 0; }
 .shell-reveal-navbar { opacity: 0; }
@@ -213,4 +214,13 @@ a,
 }
 .guide-book-leave {
   animation: guide-book-close 0.35s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+/* Dashboard Live Alerts panel — slides in from right, overlay only */
+@keyframes dashboard-panel-slide-in {
+  from { transform: translateX(100%); }
+  to { transform: translateX(0); }
+}
+.dashboard-panel-enter {
+  animation: dashboard-panel-slide-in 0.28s cubic-bezier(0.32, 0.72, 0, 1) forwards;
 }

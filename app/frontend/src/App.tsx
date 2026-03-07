@@ -527,8 +527,8 @@ function App() {
         <div className="h-0.5 w-full bg-gradient-to-r from-sahayak-amber via-emerald-500 to-sahayak-green" />
       </header>
 
-      {/* Content area — falls into place; supports swipe left/right to change page */}
-      <div ref={contentRef} className="shell-reveal-content relative flex flex-1 flex-col w-full min-w-0" style={{ zIndex: 10, width: '100%' }}>
+      {/* Content area — no transform on this div so fixed children (Dashboard) position correctly */}
+      <div ref={contentRef} className="relative flex flex-1 flex-col w-full min-w-0" style={{ zIndex: 10, width: '100%' }}>
         {view === 'landing' && (
           <Landing
             onStart={() => setView('chat')}
@@ -576,6 +576,12 @@ function App() {
                 welcomeName={currentDisplayName ?? currentUsername}
                 onBackToChat={() => setView('chat')}
                 onLogout={async () => {
+                  const raw = currentDisplayName ?? currentUsername
+                  if (raw && typeof window !== 'undefined') {
+                    const parts = String(raw).split(/[\s_-]+/).map((p) => p.charAt(0).toUpperCase() + p.slice(1).toLowerCase())
+                    const name = parts.join(' ')
+                    if (name) window.sessionStorage.removeItem(`ai_sahayak_dashboard_welcome_dismissed_${name.toLowerCase().replace(/\s+/g, '_')}`)
+                  }
                   try {
                     await signOut()
                   } catch {

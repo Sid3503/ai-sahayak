@@ -1,7 +1,9 @@
 """
 Text-to-Speech (TTS) for AI replies – Amazon Polly (Hindi / Indian English).
 Model-agnostic: does not use Bedrock (Nova/Qwen); works the same with any chat model.
+Runs Polly in a thread so the async server does not block.
 """
+import asyncio
 import base64
 import logging
 from typing import Optional
@@ -21,7 +23,6 @@ class TTSRequest(BaseModel):
     language_code: Optional[str] = "hi-IN"  # hi-IN (Hindi) or en-IN (Indian English)
 
 
-# Aditi: bilingual Hindi + Indian English (standard engine; neural not supported for Aditi in ap-south-1)
 VOICE_ID = "Aditi"
 ENGINE = "standard"
 
@@ -33,6 +34,19 @@ def _get_polly_client():
         kwargs["aws_access_key_id"] = settings.AWS_ACCESS_KEY_ID
         kwargs["aws_secret_access_key"] = settings.AWS_SECRET_ACCESS_KEY
     return boto3.client("polly", **kwargs)
+
+
+def _synthesize_sync(text: str, lang: str) -> bytes:
+    """Blocking Polly call – run from thread."""
+    client = _get_polly_client()
+    response = client.synthesize_speech(
+        Text=text,
+        OutputFormat="mp3",
+        VoiceId=VOICE_ID,
+        LanguageCode=lang,
+        Engine=ENGINE,
+    )
+    return response["AudioStream"].read()
 
 
 @router.post("/tts")
@@ -52,38 +66,10 @@ async def text_to_speech(req: TTSRequest):
         lang = "hi-IN"
 
     try:
-        client = _get_polly_client()
-        response = client.synthesize_speech(
-            Text=text,
-            OutputFormat="mp3",
-            VoiceId=VOICE_ID,
-            LanguageCode=lang,
-            Engine=ENGINE,
-        )
-        audio_bytes = response["AudioStream"].read()
+        audio_bytes = await asyncio.to_thread(_synthesize_sync, text, lang)
         audio_b64 = base64.b64encode(audio_bytes).decode("utf-8")
-        return {
-            "audio_base64": audio_b64,
-            "content_type": "audio/mpeg",
-        }
+        return {"audio_base64": audio_b64, "content_type": "audio/mpeg"}
     except Exception as e:
         err_msg = str(e)
-        print(f"[TTS] Polly failed: {err_msg}")
         logger.exception("Polly TTS failed: %s", err_msg)
-        if "neural" in err_msg.lower() or "Engine" in err_msg:
-            try:
-                client = _get_polly_client()
-                response = client.synthesize_speech(
-                    Text=text,
-                    OutputFormat="mp3",
-                    VoiceId=VOICE_ID,
-                    LanguageCode=lang,
-                    Engine="standard",
-                )
-                audio_bytes = response["AudioStream"].read()
-                audio_b64 = base64.b64encode(audio_bytes).decode("utf-8")
-                return {"audio_base64": audio_b64, "content_type": "audio/mpeg"}
-            except Exception as e2:
-                logger.exception("Polly TTS (standard engine) failed: %s", e2)
-                raise HTTPException(status_code=503, detail=f"TTS failed: {str(e2)}")
         raise HTTPException(status_code=503, detail=f"TTS failed: {err_msg}")

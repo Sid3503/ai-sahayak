@@ -2,7 +2,7 @@ import type { WelcomeCardProps } from './types'
 
 export function WelcomeCard({ main, onContinue, onLogout }: WelcomeCardProps) {
   return (
-    <div className="flex flex-1 items-center justify-center">
+    <div className="flex flex-1 items-center justify-center" style={{ paddingTop: '4rem', minHeight: 'calc(100vh - 4rem)' }}>
       <div className="w-full max-w-sm rounded-2xl border-2 border-slate-200 bg-white p-6 shadow-xl">
         <p className="text-center text-lg font-semibold text-slate-900">{main}</p>
         <button

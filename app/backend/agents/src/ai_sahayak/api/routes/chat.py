@@ -128,17 +128,18 @@ async def webhook_incoming(payload: InboundPayload):
         prior_state = await get_conversation_state(session_id)
         print("State fetched successfully.")
         
-        # Live Alerts / My day: skip onboarding so user gets normal chat (English/Hinglish/Hindi), not the 7-question flow.
+        # Live Alerts / My day: skip onboarding and always use Hinglish for shopkeepers.
         # session_id from frontend is "day-session-{retailerKey}" (e.g. day-session-raju); user_id is the retailer key.
-        if session_id.startswith("day-session-") and (
-            not prior_state.get("messages") or prior_state.get("current_step") in ("onboarding", "wait_for_hi", "")
-        ):
-            uid = (payload.user_id or "").strip().lower()
-            prior_state["current_step"] = "completed"
+        if session_id.startswith("day-session-"):
             prior_state.setdefault("onboarding_data", {})
-            if uid and not prior_state["onboarding_data"].get("name"):
-                prior_state["onboarding_data"]["name"] = uid.capitalize()
-            prior_state["onboarding_data"].setdefault("preferred_language", "English")
+            prior_state["onboarding_data"]["preferred_language"] = "Hinglish"
+            if (
+                not prior_state.get("messages") or prior_state.get("current_step") in ("onboarding", "wait_for_hi", "")
+            ):
+                uid = (payload.user_id or "").strip().lower()
+                prior_state["current_step"] = "completed"
+                if uid and not prior_state["onboarding_data"].get("name"):
+                    prior_state["onboarding_data"]["name"] = uid.capitalize()
         
         # Restore messages and append new one
         restored_messages = restore_messages(prior_state.get("messages", []))
