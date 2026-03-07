@@ -5,7 +5,7 @@ import { useAuth } from './authContext'
 import { SplashScreen, wasSplashAlreadySeen } from './SplashScreen'
 import { signOut, getCurrentUser, fetchUserAttributes } from 'aws-amplify/auth'
 import { isCognitoConfigured } from './cognitoConfig'
-import { Dashboard, DashboardLoginCard, formatWelcomeName, getWelcomeMessage } from './dashboard'
+import { Dashboard, DashboardLoginCard } from './dashboard'
 import type { DemoUser } from './dashboard/types'
 
 const DEMO_USERS: DemoUser[] = [
@@ -1158,7 +1158,6 @@ function ChatOnboarding({ demoUsers = [], onContinue, onBotReply, onImageUpload,
   const ttsAudioRef = useRef<HTMLAudioElement | null>(null)
   const agentApiBase = (import.meta as any).env?.VITE_AGENT_API_BASE || 'http://localhost:8000'
 
-  const scriptMessages = onboardingScript.slice(0, step)
   const visibleMessages = liveMessages
   const atEnd = step >= onboardingScript.length
 

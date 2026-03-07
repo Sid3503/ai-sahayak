@@ -20,7 +20,7 @@ const defaultModelStatus: ModelStatus = {
   deepar_endpoint_configured: true,
 }
 
-export function Dashboard({ welcomeName, onBackToChat, onLogout }: DashboardProps) {
+export function Dashboard({ welcomeName, onBackToChat: _onBackToChat, onLogout }: DashboardProps) {
   const [welcomeCardDismissed, setWelcomeCardDismissed] = useState(false)
   const [panelOpen, setPanelOpen] = useState(false)
   const [modelStatus, setModelStatus] = useState<ModelStatus | null>(null)

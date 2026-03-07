@@ -10,7 +10,7 @@ bedrock_runtime = boto3.client("bedrock-agent-runtime", region_name=settings.BED
 async def whatif_simulator_node(state: ConversationState):
     """
     Evaluates business scenarios using Bedrock AgentCore Code Interpreter.
-    Qwen 32B generates the Python calculation logic, and Code Interpreter executes it.
+    LLM (Nova Lite / config) generates the Python calculation logic, and Code Interpreter executes it.
     """
     llm = get_llm(model_id=settings.REASONING_MODEL_ID, temperature=0.1)
 

@@ -19,7 +19,7 @@ DASHBOARD_API_BASE = (
 ).rstrip("/")
 
 
-def _fetch_price_from_dashboard(dataset_key: str, sku_id: str | None = None) -> dict | None:
+def _fetch_price_from_dashboard(dataset_key: str, sku_id: Optional[str] = None) -> Optional[dict]:
     """Call Dashboard POST /api/price; returns parsed JSON or None on failure."""
     url = f"{DASHBOARD_API_BASE}/api/price"
     body = {"dataset_key": dataset_key}

@@ -4,13 +4,14 @@ Validates Aadhar, GST, PIN code, and geographic coordinates.
 """
 import re
 from dataclasses import dataclass
+from typing import Optional
 
 
 @dataclass
 class ValidationResult:
     is_valid: bool
-    normalized: str | None
-    error: str | None
+    normalized: Optional[str]
+    error: Optional[str]
 
 
 def validate_aadhar(raw: str) -> ValidationResult:

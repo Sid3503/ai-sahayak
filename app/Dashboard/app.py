@@ -1887,6 +1887,9 @@ def get_dataset_catalog() -> Dict[str, str]:
     # Fallback to env-selected dataset if not in map.
     if not out and os.path.exists(DATA_CSV):
         out["default"] = DATA_CSV
+    # Ensure at least one entry so init_runtime never gets empty catalog (e.g. on EC2 when CSVs missing).
+    if not out:
+        out["raju"] = str(DATA_CSV)
     return out
 
 def init_runtime(force_reload: bool = False, dataset_key: str = "raju") -> Dict[str, Any]:
@@ -2525,47 +2528,76 @@ def create_api_app() -> Any:
 
     @app.route("/api/meta", methods=["GET"])
     def meta():
-        dataset_key = request.args.get("dataset_key", "raju")
-        rt = init_runtime(dataset_key=dataset_key)
-        df = rt["df"]
-        skus = (
-            df.groupby("sku_id", as_index=False)
-            .agg(item_name=("item_name", "first"), category=("category", "first"))
-            .sort_values("sku_id")
-        )
-        return jsonify({
-            "active_dataset": rt.get("dataset_key", dataset_key),
-            "datasets": [{"key": k, "path": v} for k, v in get_dataset_catalog().items()],
-            "sku_count": int(df["sku_id"].nunique()),
-            "rows": int(len(df)),
-            "date_min": str(df["date"].min().date()),
-            "date_max": str(df["date"].max().date()),
-            "skus": skus.to_dict(orient="records"),
-            "channels": sorted(df["channel"].astype(str).unique().tolist()),
-            "regions": sorted(df["region"].astype(str).unique().tolist()),
-        })
+        try:
+            dataset_key = request.args.get("dataset_key", "raju")
+            rt = init_runtime(dataset_key=dataset_key)
+            df = rt["df"]
+            skus = (
+                df.groupby("sku_id", as_index=False)
+                .agg(item_name=("item_name", "first"), category=("category", "first"))
+                .sort_values("sku_id")
+            )
+            return jsonify({
+                "active_dataset": rt.get("dataset_key", dataset_key),
+                "datasets": [{"key": k, "path": v} for k, v in get_dataset_catalog().items()],
+                "sku_count": int(df["sku_id"].nunique()),
+                "rows": int(len(df)),
+                "date_min": str(df["date"].min().date()),
+                "date_max": str(df["date"].max().date()),
+                "skus": skus.to_dict(orient="records"),
+                "channels": sorted(df["channel"].astype(str).unique().tolist()),
+                "regions": sorted(df["region"].astype(str).unique().tolist()),
+            })
+        except Exception as e:
+            return jsonify({
+                "active_dataset": "raju",
+                "datasets": [{"key": "raju", "path": str(DATA_CSV)}],
+                "sku_count": 0,
+                "rows": 0,
+                "date_min": "",
+                "date_max": "",
+                "skus": [],
+                "channels": ["GT"],
+                "regions": ["West"],
+            }), 200
 
     @app.route("/api/model-status", methods=["GET"])
     def model_status():
-        dataset_key = request.args.get("dataset_key", "raju")
-        rt = init_runtime(dataset_key=dataset_key)
-        bedrock_status = get_bedrock_status(force=True)
-        deepar_endpoint = get_deepar_endpoint(dataset_key)
-        status = {
-            "dataset_key": rt.get("dataset_key"),
-            "dnn_loaded": rt.get("nn_model") is not None and rt.get("nn_scaler") is not None,
-            "policy_loaded": rt.get("policy_model") is not None,
-            "bedrock_ready": bool(bedrock_status.get("ok")),
-            "bedrock_required": REQUIRE_BEDROCK,
-            "bedrock_error": bedrock_status.get("error", ""),
-            "bedrock_model_primary": BEDROCK_MODEL_ID,
-            "bedrock_model_fallbacks": BEDROCK_FALLBACK_MODELS,
-            "deepar_endpoint_configured": bool(deepar_endpoint),
-            "forecast_primary": "DeepAR (SageMaker)" if deepar_endpoint else "DeepAR Proxy (local)",
-            "aws_region": AWS_REGION,
-            "deepar_endpoint": deepar_endpoint if deepar_endpoint else "",
-        }
-        return jsonify(status)
+        try:
+            dataset_key = request.args.get("dataset_key", "raju")
+            rt = init_runtime(dataset_key=dataset_key)
+            bedrock_status = get_bedrock_status(force=True)
+            deepar_endpoint = get_deepar_endpoint(dataset_key)
+            status = {
+                "dataset_key": rt.get("dataset_key"),
+                "dnn_loaded": rt.get("nn_model") is not None and rt.get("nn_scaler") is not None,
+                "policy_loaded": rt.get("policy_model") is not None,
+                "bedrock_ready": bool(bedrock_status.get("ok")),
+                "bedrock_required": REQUIRE_BEDROCK,
+                "bedrock_error": bedrock_status.get("error", ""),
+                "bedrock_model_primary": BEDROCK_MODEL_ID,
+                "bedrock_model_fallbacks": BEDROCK_FALLBACK_MODELS,
+                "deepar_endpoint_configured": bool(deepar_endpoint),
+                "forecast_primary": "DeepAR (SageMaker)" if deepar_endpoint else "DeepAR Proxy (local)",
+                "aws_region": AWS_REGION,
+                "deepar_endpoint": deepar_endpoint if deepar_endpoint else "",
+            }
+            return jsonify(status)
+        except Exception as e:
+            return jsonify({
+                "dataset_key": "raju",
+                "dnn_loaded": False,
+                "policy_loaded": False,
+                "bedrock_ready": False,
+                "bedrock_required": REQUIRE_BEDROCK,
+                "bedrock_error": str(e),
+                "bedrock_model_primary": BEDROCK_MODEL_ID,
+                "bedrock_model_fallbacks": BEDROCK_FALLBACK_MODELS,
+                "deepar_endpoint_configured": False,
+                "forecast_primary": "DeepAR Proxy (local)",
+                "aws_region": AWS_REGION,
+                "deepar_endpoint": "",
+            }), 200
 
     @app.route("/api/kpis", methods=["GET"])
     def api_kpis():
