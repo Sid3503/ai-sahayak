@@ -7,11 +7,13 @@ in the backend .env to your pool's ID (e.g. kyc-yv → get ID from User pool ove
 The backend creates the user in Cognito when it generates the credentials in chat.
 Use the same User Pool ID as the frontend (VITE_COGNITO_USER_POOL_ID).
 """
+from typing import Optional
+
 import boto3
 from ai_sahayak.config.settings import settings
 
 
-def ensure_cognito_user(username: str, password: str, *, name: str | None = None) -> bool:
+def ensure_cognito_user(username: str, password: str, *, name: Optional[str] = None) -> bool:
     """
     Ensure a user exists in the configured Cognito User Pool with the given password.
     If user exists, set their password; if not, create user and set permanent password.

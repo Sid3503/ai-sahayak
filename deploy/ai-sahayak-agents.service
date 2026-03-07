@@ -1,0 +1,17 @@
+[Unit]
+Description=AI Sahayak Agents API (FastAPI :8000)
+After=network.target
+
+[Service]
+Type=simple
+User=ec2-user
+WorkingDirectory=/home/ec2-user/ai-sahayak/app/backend/agents
+Environment=PYTHONPATH=/home/ec2-user/ai-sahayak/app/backend/agents/src
+Environment=DASHBOARD_API_BASE_URL=http://127.0.0.1:8001
+EnvironmentFile=-/home/ec2-user/ai-sahayak/app/backend/agents/.env
+ExecStart=/home/ec2-user/ai-sahayak/app/backend/agents/.venv/bin/uvicorn ai_sahayak.main:app --host 0.0.0.0 --port 8000
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

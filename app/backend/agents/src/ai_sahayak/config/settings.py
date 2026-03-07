@@ -7,8 +7,8 @@ class Settings(BaseSettings):
     DATABASE_NAME: str = "ai_sahayak"
 
     BEDROCK_REGION: str = "ap-south-1"
-    DEFAULT_MODEL_ID: str = "qwen.qwen3-32b-v1:0"
-    REASONING_MODEL_ID: str = "qwen.qwen3-32b-v1:0"
+    DEFAULT_MODEL_ID: str = "amazon.nova-lite-v1:0"
+    REASONING_MODEL_ID: str = "amazon.nova-lite-v1:0"
     AWS_ACCESS_KEY_ID: str = ""
     AWS_SECRET_ACCESS_KEY: str = ""
     AWS_REGION: str = "ap-south-1"
@@ -41,5 +41,6 @@ class Settings(BaseSettings):
 
     class Config:
         env_file = ".env"
+        extra = "ignore"  # ignore extra env vars (e.g. AWS_DEFAULT_REGION) so .env is flexible
 
 settings = Settings()

@@ -7,6 +7,7 @@ import base64
 import json
 import time
 import uuid
+from typing import Optional
 from urllib.parse import urlparse
 
 import boto3
@@ -37,7 +38,7 @@ def _get_media_format(media_type: str) -> str:
     return MEDIA_FORMAT_MAP.get(mt, "webm")
 
 
-def transcribe_audio(audio_base64: str, media_type: str = "audio/webm", language_code: str = "hi-IN") -> str | None:
+def transcribe_audio(audio_base64: str, media_type: str = "audio/webm", language_code: str = "hi-IN") -> Optional[str]:
     """
     Transcribe audio (base64) to text using Amazon Transcribe.
     Requires TRANSCRIBE_MEDIA_BUCKET to be set in .env. Returns None if not configured or on error.

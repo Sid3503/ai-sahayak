@@ -170,7 +170,9 @@ async def webhook_incoming(payload: InboundPayload):
             # graph.ainvoke is now stateless as we manage input state manually
             result = await graph.ainvoke(inputs, config=config)
         except Exception as graph_error:
+            import traceback
             print(f"Graph invocation error: {graph_error}")
+            print(traceback.format_exc())
             # Fallback result to allow replying even on failure
             result = {
                 **inputs,
