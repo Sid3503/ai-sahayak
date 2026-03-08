@@ -3,7 +3,11 @@ from fastapi.middleware.cors import CORSMiddleware
 from ai_sahayak.api.routes import health, chat, webhook_whatsapp, calendar, tts, alerts, profile
 
 def create_app() -> FastAPI:
-    app = FastAPI(title="AI Sahayak Agents API", version="0.1.0")
+    app = FastAPI(title="AI Sahayak Agents API", version="0.1.0", redirect_slashes=False)
+
+    @app.get("/health")
+    async def root_health():
+        return {"status": "ok", "version": "0.1.0"}
 
     app.add_middleware(
         CORSMiddleware,
