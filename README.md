@@ -262,10 +262,10 @@ The system ships with **5 pre-built retailer personas** in DynamoDB table `ai-sa
 | User ID | Display Name | City | State |
 |---------|--------------|------|-------|
 | `raju` | Raju Bhai | Indore | MP |
-| `ramesh` | Ramesh Bhai | Mumbai | MH |
-| `suresh` | Suresh Bhai | Ahmedabad | GJ |
-| `kanta` | Kanta Didi | Bangalore | KA |
-| `lakshmi` | Lakshmi Didi | New Delhi | DL |
+| `ramesh` | Ramesh Bhai | Bhopal | MP |
+| `suresh` | Suresh Bhai | Jaipur | RJ |
+| `kanta` | Kanta Didi | Surat | GJ |
+| `lakshmi` | Lakshmi Didi | Hyderabad | TS |
 
 Sign in with any of these (Cognito credentials as set in your pool). **My Day** and the Control Centre iframe are scoped to the signed-in retailer (e.g. `?retailer=raju`).
 

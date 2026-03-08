@@ -48,7 +48,7 @@ def simulate_flow(name, lang_selection, inputs):
 english_inputs = [
     "I am John, my shop is John's General Store",
     "123456789012",
-    "Mumbai, Suburban",
+    "Bhopal, MP",
     "ledger.png"
 ]
 

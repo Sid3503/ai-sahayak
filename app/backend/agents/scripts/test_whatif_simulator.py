@@ -34,7 +34,7 @@ def run_simulation_test():
     # 2. Complete onboarding quickly
     send_message("My name is Sim Boy, my shop is Sim Store")
     send_message("General Store")
-    send_message("Pincode 400001, location Mumbai")
+    send_message("Pincode 462001, location Bhopal")
     send_message("5 years")
     send_message("123456789012")
     send_message("No GST")
