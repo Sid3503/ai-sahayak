@@ -18,8 +18,11 @@ if [ -f "$ROOT/app/frontend/.env" ]; then
   set -a
   . "$ROOT/app/frontend/.env"
   set +a
-  export VITE_COGNITO_REDIRECT_URI="${BASE_URL}"
 fi
+# BASE_URL must win for API base (avoid .env overriding with old IP)
+export VITE_AGENT_API_BASE="${BASE_URL}:8000"
+export VITE_CONTROL_CENTRE_URL="${BASE_URL}/control-centre/"
+export VITE_COGNITO_REDIRECT_URI="${BASE_URL}"
 cd "$ROOT/app/frontend"
 npm ci 2>/dev/null || npm install --no-audit --no-fund
 npm run build

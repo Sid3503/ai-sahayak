@@ -1,6 +1,7 @@
 """
-Update user alert preferences in DynamoDB (same table the alerts Lambda reads).
-Used when the user says e.g. "7 din pehle batao" or "subah 8 baje bhejo" in chat.
+Update user alert preferences in DynamoDB.
+Uses ALERT_USERS_TABLE (same table the alerts Lambda reads: ai-sahayak-users) so
+chat-updated times are used by Lambda. Onboarding/profile stay in USERS_TABLE (ai_sahayak_user_info).
 """
 import os
 from typing import Optional
@@ -11,15 +12,17 @@ from botocore.exceptions import ClientError
 from ai_sahayak.config.settings import settings
 
 _USERS_TABLE = os.environ.get("USERS_TABLE", settings.USERS_TABLE)
+# Table Lambda reads for alert_time_hour_ist, alert_days_before (the 5 retailers: raju, ramesh, etc.)
+_ALERT_USERS_TABLE = os.environ.get("ALERT_USERS_TABLE", "").strip() or _USERS_TABLE
 _REGION = os.environ.get("AWS_REGION", settings.AWS_REGION)
-_dynamo = None
+_alert_table = None
 
 
-def _get_table():
-    global _dynamo
-    if _dynamo is None:
-        _dynamo = boto3.resource("dynamodb", region_name=_REGION).Table(_USERS_TABLE)
-    return _dynamo
+def _get_alert_table():
+    global _alert_table
+    if _alert_table is None:
+        _alert_table = boto3.resource("dynamodb", region_name=_REGION).Table(_ALERT_USERS_TABLE)
+    return _alert_table
 
 
 def update_alert_preferences(
@@ -64,7 +67,7 @@ def update_alert_preferences(
     if not updates:
         return True
     try:
-        table = _get_table()
+        table = _get_alert_table()
         update_expr = "SET " + ", ".join(updates)
         params = {
             "Key": {"user_id": user_id},

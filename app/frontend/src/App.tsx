@@ -1028,7 +1028,6 @@ function Landing(props: { onStart: () => void; onSkipToDashboard: () => void; on
             {[
               { name: 'Lambda', role: 'Festival check', color: 'bg-amber-50 border-amber-300' },
               { name: 'EC2', role: 'Compute', color: 'bg-rose-50 border-rose-300' },
-              { name: 'Amplify', role: 'Hosting & CI/CD', color: 'bg-amber-50/80 border-amber-400' },
               { name: 'DynamoDB', role: 'Store data', color: 'bg-emerald-50 border-emerald-300' },
               { name: 'S3', role: 'Festival calendar', color: 'bg-green-50 border-green-300' },
               { name: 'Bedrock', role: 'Hinglish AI', color: 'bg-violet-50 border-violet-300' },

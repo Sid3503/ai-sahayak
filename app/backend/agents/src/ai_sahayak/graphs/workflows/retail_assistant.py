@@ -15,6 +15,7 @@ from ai_sahayak.graphs.workflows.general import general_chat_node
 from ai_sahayak.graphs.nodes.router.language_router import language_detection_node
 from ai_sahayak.graphs.workflows.alert import handle_alert_query_node
 from ai_sahayak.graphs.nodes.vision_node import image_analysis_node
+from ai_sahayak.graphs.workflows.alert_preferences import alert_preferences_node
 from ai_sahayak.graphs.nodes.system.memory_hooks import pre_model_hook, post_model_hook, memory_store
 from ai_sahayak.utils.validators import validate_onboarding_field
 from ai_sahayak.utils.location_resolver import enrich_location
@@ -334,6 +335,7 @@ workflow.add_node("inventory_query_node", inventory_query_node)
 workflow.add_node("forecast_query_node", forecast_query_node)
 workflow.add_node("general_chat_node", general_chat_node)
 workflow.add_node("alert_query_node", handle_alert_query_node)
+workflow.add_node("alert_preferences_node", alert_preferences_node)
 workflow.add_node("image_analysis_node", image_analysis_node)
 
 workflow.add_node("pre_memory_hook", partial(pre_model_hook, store=memory_store))
@@ -362,7 +364,7 @@ workflow.add_conditional_edges(
         "forecast": "forecast_query_node",
         "image_analysis": "image_analysis_node",
         "alert_query": "alert_query_node",
-        "alert_preferences": "general_chat_node",
+        "alert_preferences": "alert_preferences_node",
         "general_chat": "general_chat_node"
     }
 )
@@ -376,6 +378,7 @@ workflow.add_edge("forecast_query_node", "post_memory_hook")
 workflow.add_edge("general_chat_node", "post_memory_hook")
 workflow.add_edge("image_analysis_node", "post_memory_hook")
 workflow.add_edge("alert_query_node", "post_memory_hook")
+workflow.add_edge("alert_preferences_node", "post_memory_hook")
 
 workflow.add_edge("post_memory_hook", END)
 

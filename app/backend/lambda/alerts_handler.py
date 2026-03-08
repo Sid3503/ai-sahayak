@@ -422,6 +422,9 @@ def lambda_handler(event, context):
             if not date_str:
                 continue
             days = days_until(date_str, today_ist)
+            # Never alert for past events (event already over)
+            if days <= 0:
+                continue
 
             # Use event-specific alert_days if present, else user's personal window
             alert_days = ev.get("alert_days")
