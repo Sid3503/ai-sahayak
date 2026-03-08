@@ -77,7 +77,7 @@ function useInView(threshold = 0.12) {
   return [ref, hasSeen] as const
 }
 
-type View = 'landing' | 'chat' | 'dashboard' | 'pricing'
+type View = 'landing' | 'chat' | 'dashboard'
 
 function LiveClock() {
   const time = useLiveClock()
@@ -122,7 +122,7 @@ function App() {
   const [dashboardLoggedIn, setDashboardLoggedIn] = useState(false)
   const [currentUsername, setCurrentUsername] = useState<string | null>(null)
   const [currentDisplayName, setCurrentDisplayName] = useState<string | null>(null)
-  const VIEW_ORDER: View[] = ['landing', 'chat', 'dashboard', 'pricing']
+  const VIEW_ORDER: View[] = ['landing', 'chat', 'dashboard']
   const currentStep = VIEW_ORDER.indexOf(view) + 1
   const scrollProgress = useScrollProgress()
 
@@ -358,7 +358,6 @@ function App() {
     { id: 'landing'   as const, num: 1, label: 'Home',        sub: 'Start here'      },
     { id: 'chat'      as const, num: 2, label: 'Onboarding',  sub: 'Setup via chat'  },
     { id: 'dashboard' as const, num: 3, label: 'Dashboard',   sub: 'Command center'  },
-    { id: 'pricing'   as const, num: 4, label: 'Pricing',     sub: 'MSME plans'      },
   ]
 
   const baseShellClasses = 'flex flex-col min-h-screen w-full min-w-0 text-slate-800 relative bg-[#fefbf5]'
@@ -534,7 +533,6 @@ function App() {
             onStart={() => setView('chat')}
             onSkipToDashboard={() => setView('dashboard')}
             onSkipToDay={() => setView('dashboard')}
-            onPricing={() => setView('pricing')}
           />
         )}
         {view === 'chat' && (
@@ -618,9 +616,6 @@ function App() {
             )}
           </div>
         )}
-        {view === 'pricing' && (
-          <PricingPage />
-        )}
       </div>
     </div>
       )}
@@ -628,98 +623,9 @@ function App() {
   )
 }
 
-const TECH_COST_ROWS = [
-  { service: 'Amazon Bedrock (AI)', usage: '~40 chats/business/day, ~1K tokens each', perDay: '~₹4', perMonth: '~₹120', optional: false },
-  { service: 'Amazon Polly (voice-out)', usage: '~15 TTS plays/business/day — add-on for those who want voice', perDay: '~₹1', perMonth: '~₹30', optional: true },
-  { service: 'Amazon Transcribe', usage: '~3 min voice/business/day — add-on for those who want voice input', perDay: '~₹2', perMonth: '~₹60', optional: true },
-  { service: 'WhatsApp Business API (production)', usage: 'Chat + media, conversation-based; user stays on WhatsApp', perDay: '—', perMonth: 'Included in plan', optional: false },
-  { service: 'DynamoDB', usage: 'Profile, chat history, state', perDay: '~₹1', perMonth: '~₹30', optional: false },
-  { service: 'S3 + Lambda + OCR / Vision', usage: 'Ledger/bill photo upload, Amazon Textract/Recognition', perDay: '~₹0.50', perMonth: '~₹20', optional: false },
-  { service: 'Cognito / Auth', usage: 'Optional; WhatsApp number = login in production', perDay: '~₹0', perMonth: '~₹5', optional: false },
-] as const
 
-const MSME_PLANS = [
-  { id: 'monthly', name: 'Monthly', price: 299, period: 'month', save: null, popular: false },
-  { id: '3month', name: '3 Months', price: 799, period: '3 months', save: '~11%', popular: false },
-  { id: '6month', name: '6 Months', price: 1499, period: '6 months', save: '~17%', popular: true },
-  { id: 'yearly', name: '1 Year', price: 2499, period: '1 year', save: '~30%', popular: false },
-] as const
-
-function PricingPage() {
-  return (
-    <main className="relative z-10 flex flex-1 flex-col overflow-x-hidden pt-[4.5rem] pb-16 px-4 md:px-8 [scroll-behavior:smooth]">
-      <div className="mx-auto max-w-4xl w-full">
-        <h1 className="text-3xl font-black tracking-tight text-slate-900 md:text-4xl">Pricing for MSME</h1>
-        <p className="mt-2 text-slate-600">Transparent pricing for MSMEs — what we use, what it costs us, and what you pay.</p>
-        <p className="mt-1 text-sm font-medium text-slate-500">Full AWS stack (Bedrock, SageMaker, Transcribe, Polly, DynamoDB, S3, EventBridge). WhatsApp-first, built to scale for India’s small businesses.</p>
-
-        <section className="mt-10">
-          <h2 className="text-xl font-bold text-slate-900">What we use — and what it costs (per business)</h2>
-          <p className="mt-1 text-sm text-slate-600">Rough AWS cost for typical daily usage. Estimates for ap-south-1.</p>
-          <div className="mt-4 overflow-x-auto rounded-xl border-2 border-slate-200 bg-white/95 shadow-sm">
-            <table className="w-full min-w-[520px] text-left text-sm">
-              <thead>
-                <tr className="border-b border-slate-200 bg-slate-50/80">
-                  <th className="px-4 py-3 font-bold text-slate-800">Service</th>
-                  <th className="px-4 py-3 font-bold text-slate-800">Typical usage</th>
-                  <th className="px-4 py-3 font-bold text-slate-800">Cost/business/day</th>
-                  <th className="px-4 py-3 font-bold text-slate-800">Cost/business/month</th>
-                </tr>
-              </thead>
-              <tbody>
-                {TECH_COST_ROWS.map((row) => (
-                  <tr key={row.service} className={`border-b border-slate-100 last:border-0 ${row.optional ? 'bg-slate-50/80' : ''}`}>
-                    <td className="px-4 py-3 font-medium text-slate-800">
-                      {row.service}
-                      {row.optional && <span className="ml-2 rounded bg-slate-200 px-1.5 py-0.5 text-xs font-semibold text-slate-700">Optional</span>}
-                    </td>
-                    <td className="px-4 py-3 text-slate-600">{row.usage}</td>
-                    <td className="px-4 py-3 font-semibold text-emerald-700">{row.perDay}</td>
-                    <td className="px-4 py-3 font-semibold text-emerald-700">{row.perMonth}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          <p className="mt-3 text-sm text-slate-500">Polly & Transcribe are <strong>optional</strong> — some businesses want voice (TTS/transcribe), some don’t. In WhatsApp-only production, many won’t need them; cost above is if they opt in.</p>
-          <p className="mt-1 text-sm text-slate-500">Base cost per business (no voice add-on): ~₹5–6/day → ~₹165/month (Bedrock + WhatsApp + DB + OCR). Plans are built on this with a small margin.</p>
-        </section>
-
-        <section className="mt-12">
-          <h2 className="text-xl font-bold text-slate-900">Plans for you</h2>
-          <p className="mt-1 text-sm text-slate-600">Same features in every plan. The only difference: <strong>commit longer → pay less per month</strong>, and your rate is locked for the plan period (no mid-term price increase).</p>
-          <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            {MSME_PLANS.map((plan) => (
-              <div key={plan.id} className={`relative rounded-2xl border-2 bg-white p-5 shadow-md transition-all hover:shadow-lg ${plan.popular ? 'border-emerald-500 bg-emerald-50/50' : 'border-slate-200'}`}>
-                {plan.popular && <span className="absolute -top-2.5 left-4 rounded-full bg-emerald-500 px-2.5 py-0.5 text-xs font-bold text-white">Best value</span>}
-                <p className="font-bold text-slate-900">{plan.name}</p>
-                <p className="mt-1 text-2xl font-black text-slate-900">₹{plan.price}<span className="text-sm font-semibold text-slate-500">/{plan.period}</span></p>
-                {plan.save && <p className="mt-1 text-sm font-medium text-emerald-600">{plan.save} off</p>}
-                <p className="mt-3 text-xs text-slate-500">Per business · Same features</p>
-              </div>
-            ))}
-          </div>
-          <p className="mt-4 text-sm text-slate-600"><strong>What you get in every plan:</strong> WhatsApp delivery, daily summary and proactive alerts, ledger/bill photo OCR, instant queries. No feature difference between Monthly and 1 Year — only a better price when you commit longer.</p>
-        </section>
-
-        <section className="mt-12 rounded-2xl border-2 border-slate-200 bg-slate-50/80 p-6 md:p-8">
-          <h2 className="text-xl font-bold text-slate-900">What’s included (production)</h2>
-          <p className="mt-2 text-sm text-slate-600">You use only WhatsApp — no app download, no password. Our backend does the rest; we use an internal dashboard for support and analytics (not part of your plan).</p>
-          <ul className="mt-4 list-inside list-disc space-y-1.5 text-sm text-slate-700">
-            <li><strong>Proactive delivery</strong> — daily 9 PM summary (earnings, stock alerts); event-based alerts (festival calendar, local demand) so you restock before the rush, not after.</li>
-            <li><strong>WhatsApp chat</strong> — onboarding, instant queries (e.g. last month profit), all in conversation.</li>
-            <li><strong>Ledger / bill photos</strong> — you send a photo; we run OCR (Amazon Textract/Recognition) and update your digital stock. Included in plan.</li>
-            <li><strong>Optional</strong> — voice (TTS / transcribe) and in-chat mini “dashboard” (WhatsApp Flow) when we support it.</li>
-          </ul>
-          <p className="mt-4 text-sm text-slate-600">Plans include WhatsApp Business API usage (conversation-based, within fair-use) and OCR for uploaded photos. High-volume or custom needs can be discussed separately.</p>
-        </section>
-      </div>
-    </main>
-  )
-}
-
-function Landing(props: { onStart: () => void; onSkipToDashboard: () => void; onSkipToDay: () => void; onPricing?: () => void }) {
-  const { onStart, onSkipToDashboard, onSkipToDay, onPricing } = props
+function Landing(props: { onStart: () => void; onSkipToDashboard: () => void; onSkipToDay: () => void }) {
+  const { onStart, onSkipToDashboard, onSkipToDay } = props
   const [storyRef, storySeen] = useInView(0.08)
   const [statsRef, statsSeen] = useInView(0.08)
   const [diffRef, diffSeen] = useInView(0.08)
@@ -782,12 +688,6 @@ function Landing(props: { onStart: () => void; onSkipToDashboard: () => void; on
                   className="rounded-full border-2 border-slate-300 bg-white/90 backdrop-blur-sm px-5 py-3.5 text-sm font-semibold text-slate-700 transition-all duration-400 ease-[cubic-bezier(0.22,1,0.36,1)] hover:bg-white hover:border-slate-400 hover:shadow-lg hover:scale-[1.03] active:scale-[0.98]">
                   Dashboard →
                 </button>
-                {onPricing && (
-                  <button type="button" onClick={onPricing}
-                    className="rounded-full border-2 border-amber-400 bg-amber-50/90 backdrop-blur-sm px-5 py-3.5 text-sm font-semibold text-amber-800 transition-all duration-400 ease-[cubic-bezier(0.22,1,0.36,1)] hover:bg-amber-100 hover:border-amber-500 hover:shadow-lg hover:scale-[1.03] active:scale-[0.98]">
-                    Pricing (MSME) →
-                  </button>
-                )}
               </div>
 
               <div className="mt-8 flex items-center gap-4 justify-center lg:justify-start">
@@ -902,13 +802,12 @@ function Landing(props: { onStart: () => void; onSkipToDashboard: () => void; on
 
       <section className="relative z-10 border-b border-slate-200/80 py-8 glass-strong shadow-inner">
         <div className="mx-auto max-w-5xl px-4">
-          <p className="text-center text-[0.65rem] font-bold uppercase tracking-[0.3em] text-slate-600 mb-6">Demo Journey — Follow These 4 Steps</p>
+          <p className="text-center text-[0.65rem] font-bold uppercase tracking-[0.3em] text-slate-600 mb-6">Demo Journey — Follow These 3 Steps</p>
           <div className="flex flex-wrap items-center justify-center gap-0">
             {[
               { num: 1, icon: null, title: 'Home', sub: 'The problem', accent: 'border-slate-200 bg-slate-50/90 backdrop-blur-sm', numColor: 'bg-slate-500 text-white' },
               { num: 2, icon: null, title: 'Onboarding', sub: 'Setup via chat', accent: 'border-emerald-200 bg-emerald-50/90 backdrop-blur-sm', numColor: 'bg-emerald-500 text-white' },
               { num: 3, icon: null, title: 'Dashboard', sub: 'Command center + Live Alerts', accent: 'border-emerald-200 bg-emerald-50/90 backdrop-blur-sm', numColor: 'bg-emerald-500 text-white' },
-              { num: 4, icon: null, title: 'Pricing', sub: 'MSME plans', accent: 'border-amber-200 bg-amber-50/90 backdrop-blur-sm', numColor: 'bg-amber-500 text-white' },
             ].map((item, i) => (
               <div key={item.title} className="flex items-center">
                 <div className={`relative flex items-center gap-3 rounded-2xl border-2 px-4 py-3 transition-all duration-400 ease-[cubic-bezier(0.22,1,0.36,1)] hover:-translate-y-1.5 hover:shadow-xl active:scale-[0.98] ${item.accent}`}>
@@ -919,7 +818,7 @@ function Landing(props: { onStart: () => void; onSkipToDashboard: () => void; on
                     <p className="text-[0.62rem] font-medium text-slate-600 leading-tight">{item.sub}</p>
                   </div>
                 </div>
-                {i < 3 && (
+                {i < 2 && (
                   <div className="flex items-center px-1.5">
                     <div className="h-px w-4 bg-slate-300" />
                     <svg className="h-3 w-3 text-slate-400 -ml-0.5" fill="currentColor" viewBox="0 0 6 6"><polygon points="0,0 6,3 0,6" /></svg>
