@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react'
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
@@ -430,16 +431,16 @@ const RajuDayComponent = ({ welcomeName, onClose }: RajuDayProps, ref: React.Ref
                             <ReactMarkdown
                               remarkPlugins={[remarkGfm]}
                               components={{
-                                p: ({ children }) => <p style={{ margin: '0 0 6px 0', fontSize: '0.73rem' }}>{children}</p>,
-                                strong: ({ children }) => <strong style={{ fontWeight: 700, color: '#111b21' }}>{children}</strong>,
-                                table: ({ children }) => <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: 6, fontSize: '0.7rem' }}>{children}</table>,
-                                thead: ({ children }) => <thead>{children}</thead>,
-                                tbody: ({ children }) => <tbody>{children}</tbody>,
-                                tr: ({ children }) => <tr>{children}</tr>,
-                                th: ({ children }) => <th style={{ textAlign: 'left', padding: '4px 8px', borderBottom: '1px solid #e5e7eb', fontWeight: 600 }}>{children}</th>,
-                                td: ({ children }) => <td style={{ padding: '4px 8px', borderBottom: '1px solid #f3f4f6' }}>{children}</td>,
-                                ul: ({ children }) => <ul style={{ margin: '0 0 6px 0', paddingLeft: 18 }}>{children}</ul>,
-                                li: ({ children }) => <li style={{ marginBottom: 2 }}>{children}</li>,
+                                p: ({ children }: { children?: ReactNode }) => <p style={{ margin: '0 0 6px 0', fontSize: '0.73rem' }}>{children}</p>,
+                                strong: ({ children }: { children?: ReactNode }) => <strong style={{ fontWeight: 700, color: '#111b21' }}>{children}</strong>,
+                                table: ({ children }: { children?: ReactNode }) => <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: 6, fontSize: '0.7rem' }}>{children}</table>,
+                                thead: ({ children }: { children?: ReactNode }) => <thead>{children}</thead>,
+                                tbody: ({ children }: { children?: ReactNode }) => <tbody>{children}</tbody>,
+                                tr: ({ children }: { children?: ReactNode }) => <tr>{children}</tr>,
+                                th: ({ children }: { children?: ReactNode }) => <th style={{ textAlign: 'left', padding: '4px 8px', borderBottom: '1px solid #e5e7eb', fontWeight: 600 }}>{children}</th>,
+                                td: ({ children }: { children?: ReactNode }) => <td style={{ padding: '4px 8px', borderBottom: '1px solid #f3f4f6' }}>{children}</td>,
+                                ul: ({ children }: { children?: ReactNode }) => <ul style={{ margin: '0 0 6px 0', paddingLeft: 18 }}>{children}</ul>,
+                                li: ({ children }: { children?: ReactNode }) => <li style={{ marginBottom: 2 }}>{children}</li>,
                               }}
                             >
                               {msg.text}

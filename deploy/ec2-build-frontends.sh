@@ -21,11 +21,13 @@ if [ -f "$ROOT/app/frontend/.env" ]; then
   export VITE_COGNITO_REDIRECT_URI="${BASE_URL}"
 fi
 cd "$ROOT/app/frontend"
+npm ci 2>/dev/null || npm install --no-audit --no-fund
 npm run build
 
 # Dashboard (control centre): API will be proxied by nginx at /api
 export VITE_API_PROXY_TARGET="${BASE_URL}"
 cd "$ROOT/app/Dashboard"
+npm ci 2>/dev/null || npm install --no-audit --no-fund
 npm run build
 
 echo "Done. Static files: app/frontend/dist and app/Dashboard/dist"

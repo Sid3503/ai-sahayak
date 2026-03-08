@@ -20,8 +20,6 @@ const defaultModelStatus: ModelStatus = {
   deepar_endpoint_configured: true,
 }
 
-const DEMO_DISPLAY_NAMES = ['raju', 'ramesh', 'suresh', 'kanta', 'lakshmi']
-
 export function Dashboard({ welcomeName, onBackToChat: _onBackToChat, onLogout }: DashboardProps) {
   const displayName = formatWelcomeName(welcomeName)
 
