@@ -47,7 +47,7 @@ async def classify_intent_node(state: ConversationState):
     if greeting_only:
         return {"next_intent": "general_chat"}
     # Fast path: alert time/days — no LLM needed (works without Bedrock)
-    if re.search(r"\d+\s*baje|bhejo|alert\s*(time|chahiye|at)|din\s*pehle\s*batao|\d+\s*(am|pm)|alert\s+at|send\s+(me\s+)?alert", user_message):
+    if re.search(r"\d+\s*baje|bhejo|alert\s*(time|chahiye|at)|din\s*pehle\s*batao|\d+\s*(am|pm)|alert\s+at|send\s+(me\s+)?alert|set\s+alert", user_message):
         return {"next_intent": "alert_preferences"}
     # Fast paths (English + Hinglish) to avoid LLM misclassification
     if any(w in user_message for w in (

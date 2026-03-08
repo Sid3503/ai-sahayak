@@ -6,7 +6,9 @@
 
 # 🛒 AI Sahayak
 
-### *Proactive Intelligence for Indian MSMEs*
+### *Proactive Intelligence for Indian Kirana & MSMEs*
+
+**AI Sahayak** is a hackathon project for **AWS AI for Bharat**: a proactive intelligence platform for small shopkeepers and MSMEs. It combines a **Control Centre** (KPIs, demand forecast, pricing, what-if) with **My Day** — a Hinglish chat where live alerts (festivals, news, daily summary) appear and where the user can set alert times (*"set alert for 2 pm"*). Five demo retailers (Raju, Ramesh, Suresh, Kanta, Lakshmi) are pre-seeded; sign in as any to see that persona’s dashboard and alerts.
 
 > "Kal festival hai — demand badhega, stock aur price dono check kar lo."
 >
@@ -59,9 +61,10 @@ Post-login proactive chat for the business owner. Real KPIs from the dashboard, 
 
 ### 🤖 Proactive Pipeline (The "Wow" Factor)
 - **Event calendar** via AWS Systems Manager Change Calendar — festivals, deadlines, seasonal events
-- **EventBridge** triggers the alert Lambda daily at 9 AM IST (per-user configurable)
+- **EventBridge** triggers the alert Lambda on a schedule (e.g. every 30 minutes so per-user times like "2 pm" work)
+- **Per-user alert time:** In My Day chat, say *"set alert for 2 pm"* or *"8 baje bhejo"* — stored in DynamoDB (`ai-sahayak-users`), Lambda sends alerts only at that hour
 - Lambda merges: national + regional calendar (from S3) + MSME-relevant RSS news (GST, commodity prices, small biz)
-- Generates personalized Hinglish alerts per user → posts to backend webhook → shows in chat
+- Generates personalized Hinglish alerts per user → posts to backend webhook → shows in My Day chat
 
 ### 💬 Reactive Chat — "Sahayak"
 Ask anything in Hinglish:
@@ -83,10 +86,11 @@ Same Hinglish chat and proactive alerts on WhatsApp — the channel most small b
 ┌─────────────────────────────────────────────────────────────────┐
 │                         PROACTIVE PIPELINE                       │
 │                                                                  │
-│  AWS Change Calendar ──► EventBridge (9AM IST daily)            │
+│  AWS Change Calendar ──► EventBridge (e.g. every 30 min)       │
 │          ↓                        ↓                             │
 │   SSM Calendar           Lambda: alerts-handler                 │
-│                           ├── DynamoDB (user prefs)             │
+│                           ├── DynamoDB: ai-sahayak-users        │
+│                           │   (user_id, alert_time_*_ist)       │
 │                           ├── S3 (national + regional calendar) │
 │                           ├── RSS (MSME-relevant news)          │
 │                           └── POST → Backend Webhook             │
@@ -131,7 +135,7 @@ Same Hinglish chat and proactive alerts on WhatsApp — the channel most small b
 | **AI / LLM** | Amazon Bedrock — Nova Lite (chat + reasoning) |
 | **Forecasting** | SageMaker DeepAR + Prophet ensemble fallback |
 | **Proactive Engine** | AWS Lambda (Python), EventBridge, SSM Change Calendar |
-| **Data** | DynamoDB (users + alerts), MongoDB (conversation memory), S3 (calendar) |
+| **Data** | DynamoDB (`ai-sahayak-users` = 5 demo retailers + alert prefs; `ai_sahayak_user_info` = onboarding users), MongoDB (conversation memory), S3 (calendar) |
 | **Voice** | Amazon Transcribe (speech → text), Amazon Polly (text → speech) |
 | **WhatsApp** | Meta WhatsApp Business API |
 | **Translation** | Bhashini API (optional multi-lingual) |
@@ -166,7 +170,7 @@ cp app/Dashboard/.env.example app/Dashboard/.env
 cp app/frontend/.env.example app/frontend/.env
 ```
 
-Fill in your AWS credentials and MongoDB URI in each `.env` file. The minimum required:
+Fill in your AWS credentials and MongoDB URI in each `.env` file. Minimum required:
 ```env
 # app/backend/agents/.env
 AWS_ACCESS_KEY_ID=your_key
@@ -174,6 +178,8 @@ AWS_SECRET_ACCESS_KEY=your_secret
 BEDROCK_REGION=ap-south-1
 MONGODB_URI=mongodb://localhost:27017
 COGNITO_USER_POOL_ID=your_pool_id
+# So chat-set alert times (e.g. "set alert for 2 pm") write to same table Lambda reads:
+ALERT_USERS_TABLE=ai-sahayak-users
 ```
 
 ### 3. Run all 4 services with one command
@@ -215,7 +221,7 @@ Open **My Day**, select a demo user — the test alert appears in chat within ~3
 ```
 ai-sahayak/
 ├── start.sh                          # One command: run all 4 services
-├── events.json                       # Sample EventBridge event payload
+├── PROJECT.md                        # Project overview, env files, run instructions
 │
 ├── app/
 │   ├── frontend/                     # Main React app (landing, onboarding, My Day)
@@ -251,15 +257,17 @@ ai-sahayak/
 
 ## 👥 Demo Users
 
-The system ships with 5 pre-built business-owner personas — each with sales history, stock levels, and preferences (retail/FMCG style; adaptable to other MSME segments):
+The system ships with **5 pre-built retailer personas** in DynamoDB table `ai-sahayak-users`. Each has a city/state, and alert time can be set from **My Day** chat (e.g. *"set alert for 2 pm"*). Lambda uses these to send proactive alerts to the right user.
 
-| User ID | Display Name | Business Type |
-|---|---|---|
-| `raju` | Raju Bhai | General retail — North Delhi |
-| `ramesh` | Ramesh Bhai | Grocery + Dairy — Jaipur |
-| `suresh` | Suresh Bhai | FMCG + Snacks — Pune |
-| `kanta` | Kanta Didi | Ration + Spices — Lucknow |
-| `lakshmi` | Lakshmi Didi | Regional Grocery — Bengaluru |
+| User ID | Display Name | City | State |
+|---------|--------------|------|-------|
+| `raju` | Raju Bhai | Indore | MP |
+| `ramesh` | Ramesh Bhai | Mumbai | MH |
+| `suresh` | Suresh Bhai | Ahmedabad | GJ |
+| `kanta` | Kanta Didi | Bangalore | KA |
+| `lakshmi` | Lakshmi Didi | New Delhi | DL |
+
+Sign in with any of these (Cognito credentials as set in your pool). **My Day** and the Control Centre iframe are scoped to the signed-in retailer (e.g. `?retailer=raju`).
 
 ---
 
@@ -270,9 +278,9 @@ The system ships with 5 pre-built business-owner personas — each with sales hi
 | **Amazon Bedrock** (Nova Lite) | Chat reasoning, Hinglish responses, pricing explanations |
 | **Amazon SageMaker** (DeepAR) | Per-user demand forecasting model endpoints |
 | **AWS Lambda** | Proactive alert handler, event orchestrator |
-| **Amazon EventBridge** | Scheduled 9 AM IST daily trigger |
+| **Amazon EventBridge** | Scheduled trigger for alert Lambda (e.g. every 30 min for per-user alert times) |
 | **AWS Systems Manager** (Change Calendar) | Event calendar — festivals, deadlines, seasonal events |
-| **Amazon DynamoDB** | User preferences, alert store |
+| **Amazon DynamoDB** | `ai-sahayak-users`: 5 demo retailers + alert_time_hour_ist / alert_time_minute_ist (set via chat). Alert store in backend. |
 | **Amazon S3** | National + regional calendars (JSON) |
 | **Amazon Cognito** | User authentication (same pool for frontend + chat onboarding) |
 | **Amazon Transcribe** | Voice message → text (onboarding + My Day) |
@@ -287,7 +295,7 @@ Most AI tools are **reactive** — you ask, they answer.
 AI Sahayak is **proactive** — it tells you what you need to know before you have to ask:
 
 ```
-Every morning at 9 AM IST:
+On schedule (e.g. every 30 min or daily 9 AM IST):
   EventBridge fires
       ↓
   Lambda checks SSM Change Calendar (events & deadlines)

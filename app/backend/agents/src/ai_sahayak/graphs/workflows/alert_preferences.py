@@ -89,7 +89,8 @@ def _extract_alert_preferences_regex(message: str) -> tuple:
 async def alert_preferences_node(state: ConversationState):
     user_message = (state["messages"][-1].content or "").strip() if state.get("messages") else ""
     user_context = state.get("user_context") or {}
-    user_id = (user_context.get("user_id") or "demo-user").strip() or "raju"
+    # Normalize to lowercase so we always update same item as Lambda (raju, ramesh, etc.)
+    user_id = ((user_context.get("user_id") or "demo-user").strip() or "raju").lower()
     phone = user_context.get("phone_number")
 
     # 1) Regex first — no Bedrock needed for "8 baje bhejo" / "7:30 bhejo" / "7 din pehle"

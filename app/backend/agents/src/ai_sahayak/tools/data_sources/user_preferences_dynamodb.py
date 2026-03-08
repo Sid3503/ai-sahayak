@@ -22,6 +22,8 @@ def _get_alert_table():
     global _alert_table
     if _alert_table is None:
         _alert_table = boto3.resource("dynamodb", region_name=_REGION).Table(_ALERT_USERS_TABLE)
+        # So we write to same table Lambda reads (raju, ramesh, etc. get alert_time_* in ai-sahayak-users)
+        print(f"[Alert prefs] Using table: {_ALERT_USERS_TABLE}", flush=True)
     return _alert_table
 
 
