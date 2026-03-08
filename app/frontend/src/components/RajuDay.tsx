@@ -23,11 +23,15 @@ function getTimeGreeting(): string {
   return 'Good night'
 }
 
+/** Retailer keys who are behen (sister) — use "behen" instead of "bhai" in WP chat */
+const BEHEN_KEYS = new Set(['kanta', 'lakshmi'])
+
 /** Dynamic welcome line for Live Alerts — time-based + varied closing so it feels human, not prefilled */
-function getLiveWelcomeMessage(displayName: string | null): string {
+function getLiveWelcomeMessage(displayName: string | null, retailerKey: string): string {
   const h = getISTHour()
   const greeting = getTimeGreeting().toLowerCase()
-  const namePart = displayName ? `${displayName} bhai, ` : ''
+  const suffix = BEHEN_KEYS.has(retailerKey) ? 'behen' : 'bhai'
+  const namePart = displayName ? `${displayName} ${suffix}, ` : ''
 
   const closings = [
     'Jo bhi chahiye bolo — main yahin hoon.',
@@ -123,13 +127,13 @@ const RajuDayComponent = ({ welcomeName, onClose }: RajuDayProps, ref: React.Ref
   useEffect(() => {
     setMessages((prev) => {
       if (prev.length > 0) return prev
-      const welcomeText = getLiveWelcomeMessage(displayName || null)
+      const welcomeText = getLiveWelcomeMessage(displayName || null, retailerKey)
       return [{ from: 'bot' as const, text: welcomeText }]
     })
   }, [retailerKey, displayName])
 
   const clearChat = () => {
-    const welcomeText = getLiveWelcomeMessage(displayName || null)
+    const welcomeText = getLiveWelcomeMessage(displayName || null, retailerKey)
     setMessages([{ from: 'bot' as const, text: welcomeText }])
     if (typeof window !== 'undefined') {
       try {
