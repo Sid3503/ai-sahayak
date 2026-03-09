@@ -1,0 +1,147 @@
+<mxfile host="app.diagrams.net" lang="en-GB" modified="2026-03-08T00:00:00.000Z" agent="AI Sahayak" version="22.1.0" etag="arch" type="device">
+  <diagram name="AI Sahayak Architecture" id="ai-sahayak-arch">
+    <mxGraphModel dx="1422" dy="794" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1600" pageHeight="1200" math="0" shadow="0">
+      <root>
+        <mxCell id="0"/>
+        <mxCell id="1" parent="0"/>
+        <!-- Title -->
+        <mxCell id="title" value="AI Sahayak — Current System Architecture" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontStyle=1;fontSize=16;" vertex="1" parent="1">
+          <mxGeometry x="480" y="20" width="400" height="40" as="geometry"/>
+        </mxCell>
+        <!-- Amazon Cloud bounding box -->
+        <mxCell id="cloud-box" value="Amazon Cloud" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;strokeWidth=2;fontStyle=1;fontSize=14;" vertex="1" parent="1">
+          <mxGeometry x="520" y="80" width="680" height="560" as="geometry"/>
+        </mxCell>
+        <!-- User / Client side -->
+        <mxCell id="user" value="Kirana / MSME Owner" style="shape=umlActor;verticalLabelPosition=bottom;verticalAlign=top;html=1;outlineConnect=0;fillColor=#4caf50;strokeColor=#2e7d32;fontColor=#ffffff;" vertex="1" parent="1">
+          <mxGeometry x="80" y="380" width="50" height="90" as="geometry"/>
+        </mxCell>
+        <mxCell id="app-handling" value="App Handling&#xa;(React + Vite)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="200" y="200" width="140" height="60" as="geometry"/>
+        </mxCell>
+        <mxCell id="get-analytics" value="Get Analytics / Ledger" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#666666;" vertex="1" parent="1">
+          <mxGeometry x="200" y="100" width="140" height="40" as="geometry"/>
+        </mxCell>
+        <mxCell id="authoriser" value="Authoriser" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#666666;" vertex="1" parent="1">
+          <mxGeometry x="200" y="280" width="140" height="40" as="geometry"/>
+        </mxCell>
+        <mxCell id="user-auth" value="User Auth / Token" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#666666;" vertex="1" parent="1">
+          <mxGeometry x="200" y="340" width="140" height="40" as="geometry"/>
+        </mxCell>
+        <mxCell id="voice-whatsapp" value="Voice / WhatsApp Query" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;" vertex="1" parent="1">
+          <mxGeometry x="200" y="420" width="140" height="50" as="geometry"/>
+        </mxCell>
+        <!-- AWS Cloud internal: Cognito -->
+        <mxCell id="cognito" value="handles the login&#xa;(Amazon Cognito)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="560" y="120" width="160" height="50" as="geometry"/>
+        </mxCell>
+        <!-- Multilingual = Bedrock (no Bhashini) -->
+        <mxCell id="bedrock-nl" value="Multilingual Processing&#xa;(Amazon Bedrock Nova Lite)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="560" y="200" width="180" height="50" as="geometry"/>
+        </mxCell>
+        <!-- Lambda -->
+        <mxCell id="lambda" value="Trigger Alert Logic&#xa;(AWS Lambda)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="560" y="280" width="160" height="50" as="geometry"/>
+        </mxCell>
+        <!-- DynamoDB -->
+        <mxCell id="dynamodb" value="Store / Retrieve&#xa;(Amazon DynamoDB)" style="shape=cylinder3;whiteSpace=wrap;html=1;boundedLbl=1;backgroundOutline=1;size=15;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="560" y="360" width="140" height="80" as="geometry"/>
+        </mxCell>
+        <!-- S3 -->
+        <mxCell id="s3" value="Log Sales History&#xa;(Amazon S3&#xa;Panchang)" style="shape=cylinder3;whiteSpace=wrap;html=1;boundedLbl=1;backgroundOutline=1;size=15;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="560" y="460" width="140" height="80" as="geometry"/>
+        </mxCell>
+        <!-- Data Cleaning -->
+        <mxCell id="data-cleaning" value="Data Cleaning &amp;&#xa;Normalisation" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="800" y="360" width="160" height="50" as="geometry"/>
+        </mxCell>
+        <!-- SageMaker -->
+        <mxCell id="sagemaker" value="Demand &amp; Pricing Forecast&#xa;(Amazon SageMaker DeepAR)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="800" y="260" width="200" height="50" as="geometry"/>
+        </mxCell>
+        <!-- EventBridge / State Change -->
+        <mxCell id="eventbridge" value="State Change&#xa;(e.g. Diwali starts)&#xa;EventBridge + Change Calendar" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fad7ac;strokeColor=#b46504;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="800" y="460" width="200" height="60" as="geometry"/>
+        </mxCell>
+        <!-- Transcribe & Polly -->
+        <mxCell id="transcribe" value="Amazon Transcribe&#xa;(Speech-to-Text)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f3e5f5;strokeColor=#7b1fa2;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="560" y="560" width="140" height="50" as="geometry"/>
+        </mxCell>
+        <mxCell id="polly" value="Amazon Polly&#xa;(Text-to-Speech)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f3e5f5;strokeColor=#7b1fa2;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="720" y="560" width="140" height="50" as="geometry"/>
+        </mxCell>
+        <!-- External -->
+        <mxCell id="ondc" value="ONDC / Local&#xa;Market Prices" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#666666;" vertex="1" parent="1">
+          <mxGeometry x="1080" y="260" width="100" height="50" as="geometry"/>
+        </mxCell>
+        <mxCell id="panchang" value="Cultural Almanac&#xa;(Panchang)" style="ellipse;whiteSpace=wrap;html=1;fillColor=#fad7ac;strokeColor=#b46504;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="1060" y="400" width="120" height="80" as="geometry"/>
+        </mxCell>
+        <!-- Edges: User to App and Voice -->
+        <mxCell id="e1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" edge="1" parent="1" source="user" target="app-handling">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e2" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" edge="1" parent="1" source="user" target="voice-whatsapp">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e3" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" edge="1" parent="1" source="app-handling" target="get-analytics">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e4" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" edge="1" parent="1" source="app-handling" target="authoriser">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e5" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" edge="1" parent="1" source="user-auth" target="cognito">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e6" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" edge="1" parent="1" source="get-analytics" target="cognito">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e7" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" edge="1" parent="1" source="authoriser" target="cognito">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e8" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" edge="1" parent="1" source="voice-whatsapp" target="bedrock-nl">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e9" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" edge="1" parent="1" source="voice-whatsapp" target="lambda">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e10" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" edge="1" parent="1" source="cognito" target="bedrock-nl">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e11" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" edge="1" parent="1" source="lambda" target="dynamodb">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e12" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" edge="1" parent="1" source="lambda" target="sagemaker">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e13" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" edge="1" parent="1" source="dynamodb" target="s3">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e14" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" edge="1" parent="1" source="s3" target="data-cleaning">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e15" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" edge="1" parent="1" source="data-cleaning" target="sagemaker">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e16" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" edge="1" parent="1" source="data-cleaning" target="eventbridge">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e17" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" edge="1" parent="1" source="bedrock-nl" target="eventbridge">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e18" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" edge="1" parent="1" source="sagemaker" target="eventbridge">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e19" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" edge="1" parent="1" source="ondc" target="eventbridge">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e20" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" edge="1" parent="1" source="panchang" target="eventbridge">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e21" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;dashed=1;" edge="1" parent="1" source="ondc" target="panchang">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

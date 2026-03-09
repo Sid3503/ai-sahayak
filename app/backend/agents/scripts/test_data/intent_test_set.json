@@ -1,0 +1,23 @@
+[
+  {"query": "Hello", "expected_intent": "general_chat"},
+  {"query": "Hi Sahayak", "expected_intent": "general_chat"},
+  {"query": "Namaste", "expected_intent": "general_chat"},
+  {"query": "How are my sales?", "expected_intent": "sales_query"},
+  {"query": "Sales kaisi hain?", "expected_intent": "sales_query"},
+  {"query": "Business pulse kaisa hai?", "expected_intent": "sales_query"},
+  {"query": "Overview batao", "expected_intent": "sales_query"},
+  {"query": "KPI dikhao", "expected_intent": "sales_query"},
+  {"query": "What is the price for sugar?", "expected_intent": "pricing_query"},
+  {"query": "Atta ka price kya hai?", "expected_intent": "pricing_query"},
+  {"query": "Show price review", "expected_intent": "pricing_query"},
+  {"query": "Chini ka price batao", "expected_intent": "pricing_query"},
+  {"query": "Stock levels kya hain?", "expected_intent": "inventory"},
+  {"query": "Low stock items", "expected_intent": "inventory"},
+  {"query": "Demand forecast for next week", "expected_intent": "forecast"},
+  {"query": "Aage demand kya hoga?", "expected_intent": "forecast"},
+  {"query": "Festival demand prediction", "expected_intent": "forecast"},
+  {"query": "What if competitor drops price?", "expected_intent": "alert_query"},
+  {"query": "Agar competitor price giraye to kya hoga?", "expected_intent": "alert_query"},
+  {"query": "7 din pehle batao", "expected_intent": "alert_preferences"},
+  {"query": "Alert 8 baje bhejo", "expected_intent": "alert_preferences"}
+]

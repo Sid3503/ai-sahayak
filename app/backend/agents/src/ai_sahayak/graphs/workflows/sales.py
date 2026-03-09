@@ -16,7 +16,7 @@ async def sales_query_node(state: ConversationState):
     messages = state.get("messages", [])
     
     # Real data only from Dashboard API (no mock)
-    data = get_dashboard_data(user_id)
+        data = get_dashboard_data(user_id)
     from_dashboard = data.get("from_dashboard", False)
     store = data.get("store_info", {}) or {}
     sales = data.get("sales_summary", {}) or {}
@@ -26,7 +26,7 @@ async def sales_query_node(state: ConversationState):
 
     store_name = onboarding_data.get("store_name") or store.get("name", "your store")
     city = onboarding_data.get("resolved_location") or store.get("city")
-
+    
     preferred_lang = onboarding_data.get("preferred_language", "English").lower()
     owner_name = onboarding_data.get("name", "").split()[0] if onboarding_data.get("name") else ""
     name_ref = f"{owner_name} bhai" if owner_name else "bhai"
@@ -57,16 +57,16 @@ async def sales_query_node(state: ConversationState):
     sales_context = f"Store: {store_name}"
     if city:
         city_short = str(city).split(",")[0].strip() if "," in str(city) else str(city)
-        sales_context += f" ({city_short})"
+            sales_context += f" ({city_short})"
     sales_context += "\n\n"
-
+    
     if sales.get("today") is not None:
         sales_context += f"Today's sales: ₹{sales['today']:,.0f}\n"
     if sales.get("last_week") is not None:
         sales_context += f"Last 7 days total: ₹{sales['last_week']:,.0f}\n"
     if sales.get("last_month") is not None:
         sales_context += f"Last month total: ₹{sales['last_month']:,.0f}\n"
-
+    
     top_items = sales.get("top_items") or []
     if top_items:
         sales_context += f"Top selling items: {', '.join(top_items[:5])}\n"

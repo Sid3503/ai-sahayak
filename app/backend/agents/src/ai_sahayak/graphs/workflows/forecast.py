@@ -46,8 +46,8 @@ async def forecast_query_node(state: ConversationState):
     onboarding_data = state.get("onboarding_data", {})
 
     kb_context = retrieve_from_panchang_kb(user_message, max_results=5)
-    dashboard = get_dashboard_data(user_id)
-
+        dashboard = get_dashboard_data(user_id)
+    
     # Fetch real forecast from Dashboard when available
     import asyncio
     forecast_res = await asyncio.to_thread(_fetch_forecast_from_dashboard, user_id, "")
