@@ -59,6 +59,11 @@ logs/
 tmp/
 temp/
 .cache
+FETCH_HEAD
+
+# Generated metrics / results (re-run scripts to regenerate)
+app/backend/agents/intent_accuracy_result.json
+metrics_results.json
 
 # Dashboard — large data, venv, archives (do not commit to git)
 .venv311/
