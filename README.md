@@ -24,18 +24,26 @@
 
 ### 📄 Project Deck (PPT) & Diagrams
 
-**Project deck (submitted to AWS):** [**View Main PPT on GitHub**](Diagrams/Main_PPT.pdf) — opens in GitHub’s viewer so you can scroll through the deck without leaving the repo.
-
-| | |
-|:--:|:--:|
-| **Mock / Wireframe** | **Architecture** |
-| [![Mock diagram](Diagrams/Mock_diagram_of_proposed_solution.png)](Diagrams/Mock_diagram_of_proposed_solution.png) | [![Architecture](Diagrams/Archtecture_diagram.png)](Diagrams/Archtecture_diagram.png) |
-| **Process flow** | **Use case** |
-| [![Process flow](Diagrams/Process_flow_Diagram.png)](Diagrams/Process_flow_Diagram.png) | [![Use case](Diagrams/Use_case_diagram.png)](Diagrams/Use_case_diagram.png) |
-| **Tech stack** | |
-| [![Technology](Diagrams/Technology_utilized_diagram.png)](Diagrams/Technology_utilized_diagram.png) | |
+**Project deck (submitted to AWS):** [**View Main PPT on GitHub**](diagrams/Main_PPT.pdf) — opens in GitHub’s viewer so you can scroll through the deck without leaving the repo.
 
 </div>
+
+---
+
+#### Mock / Wireframe
+![Mock diagram of proposed solution](diagrams/Mock_diagram_of_proposed_solution.png)
+
+#### Architecture
+![Architecture diagram](diagrams/Archtecture_diagram.png)
+
+#### Process flow
+![Process flow diagram](diagrams/Process_flow_Diagram.png)
+
+#### Use case
+![Use case diagram](diagrams/Use_case_diagram.png)
+
+#### Tech stack
+![Technology utilized](diagrams/Technology_utilized_diagram.png)
 
 ---
 

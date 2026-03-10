@@ -54,6 +54,7 @@ logs/
 
 # Design / Docs specific (if any generated)
 *.pdf
+!diagrams/*.pdf
 
 # Temp and cached files
 tmp/
