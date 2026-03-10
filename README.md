@@ -33,17 +33,11 @@
 #### Mock / Wireframe
 ![Mock diagram of proposed solution](diagrams/Mock_diagram_of_proposed_solution.png)
 
-#### Architecture
-![Architecture diagram](diagrams/Archtecture_diagram.png)
-
 #### Process flow
 ![Process flow diagram](diagrams/Process_flow_Diagram.png)
 
 #### Use case
 ![Use case diagram](diagrams/Use_case_diagram.png)
-
-#### Tech stack
-![Technology utilized](diagrams/Technology_utilized_diagram.png)
 
 ---
 
