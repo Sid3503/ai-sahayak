@@ -109,46 +109,7 @@ Same Hinglish chat and proactive alerts on WhatsApp — the channel most small b
 
 ## 🏗 Architecture
 
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                         PROACTIVE PIPELINE                       │
-│                                                                  │
-│  AWS Change Calendar ──► EventBridge (e.g. every 30 min)       │
-│          ↓                        ↓                             │
-│   SSM Calendar           Lambda: alerts-handler                 │
-│                           ├── DynamoDB: ai-sahayak-users        │
-│                           │   (user_id, alert_time_*_ist)       │
-│                           ├── S3 (national + regional calendar) │
-│                           ├── RSS (MSME-relevant news)          │
-│                           └── POST → Backend Webhook             │
-└──────────────────────────────────┬──────────────────────────────┘
-                                   ↓
-┌──────────────────────────────────────────────────────────────────┐
-│                     AGENTS BACKEND (FastAPI)                      │
-│                                                                   │
-│  /v1/chat        → LangGraph RetailAssistant Graph               │
-│  /v1/alerts/*    → Alert store + SSE push to frontend            │
-│  /v1/webhooks    → WhatsApp Business API                         │
-│  /v1/tts         → Amazon Polly (voice output)                   │
-│  /v1/profile     → User preferences (MongoDB + DynamoDB)         │
-│                                                                   │
-│  LangGraph Workflows: sales · pricing · forecast · inventory     │
-│                        what-if · general · alert-preferences     │
-│  Amazon Bedrock: Nova Lite (chat) · Vision (shelf analysis)      │
-│  SageMaker: DeepAR endpoint (per-user demand forecasting)        │
-└──────────────┬───────────────────────────────────────────────────┘
-               ↓                          ↓
-┌─────────────────────────┐   ┌─────────────────────────────┐
-│   DASHBOARD (Flask API) │   │   FRONTEND (React + Vite)   │
-│                         │   │                             │
-│  /api/kpis              │   │  Landing Page               │
-│  /api/forecast          │   │  Onboarding (chat-based)    │
-│  /api/price             │   │  Dashboard embed            │
-│  /api/model-status      │   │  My Day (alerts + chat)     │
-│  Bedrock explanations   │   │  Amazon Cognito auth        │
-│  SageMaker DeepAR       │   │  Tailwind + Lucide icons    │
-└─────────────────────────┘   └─────────────────────────────┘
-```
+![Architecture diagram of the proposed solution](diagrams/Archtecture_diagram.png)
 
 ---
 
