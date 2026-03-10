@@ -154,6 +154,8 @@ Same Hinglish chat and proactive alerts on WhatsApp — the channel most small b
 
 ## 🛠 Tech Stack
 
+![Technologies utilized in the solution](diagrams/Technology_utilized_diagram.png)
+
 | Layer | Technology |
 |---|---|
 | **Frontend** | React, TypeScript, Vite, Tailwind CSS, Lucide React |
