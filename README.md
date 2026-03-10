@@ -1,5 +1,7 @@
 <div align="center">
 
+<img src="app/frontend/public/Generated_image.png" alt="AI Sahayak logo" width="140" />
+
 <img src="https://img.shields.io/badge/AWS-AI%20for%20Bharat-FF9900?style=for-the-badge&logo=amazonaws&logoColor=white" />
 <img src="https://img.shields.io/badge/Built%20with-Amazon%20Bedrock-232F3E?style=for-the-badge&logo=amazonaws&logoColor=white" />
 <img src="https://img.shields.io/badge/Language-Hinglish%20%F0%9F%87%AE%F0%9F%87%B3-138808?style=for-the-badge" />
@@ -22,11 +24,14 @@
 
 *Click the thumbnail to watch the full demo on Google Drive.*
 
-### 📄 Project Deck (PPT) & Diagrams
-
-**Project deck (submitted to AWS):** [**View Main PPT on GitHub**](diagrams/Main_PPT.pdf) — opens in GitHub’s viewer so you can scroll through the deck without leaving the repo.
-
 </div>
+
+---
+
+## 📄 Project Deck (PPT) & Diagrams
+
+- **Project deck (submitted to AWS):** [View Main PPT on GitHub](diagrams/Main_PPT.pdf)
+- **Visual diagrams:** mock/wireframe, process flow, and use case (below)
 
 ---
 
