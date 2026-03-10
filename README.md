@@ -16,6 +16,12 @@
 
 [Features](#-features) · [Architecture](#-architecture) · [Tech Stack](#-tech-stack) · [Quick Start](#-quick-start) · [Project Structure](#-project-structure) · [Demo Users](#-demo-users)
 
+### 🎬 Demo Video
+
+[![AI Sahayak Demo](https://drive.google.com/thumbnail?id=1ik-oeAu50V4CuQVZb5uEvjqQ32nhspJy&sz=w1280)](https://drive.google.com/file/d/1ik-oeAu50V4CuQVZb5uEvjqQ32nhspJy/view?usp=sharing)
+
+*Click the thumbnail to watch the full demo on Google Drive.*
+
 </div>
 
 ---
