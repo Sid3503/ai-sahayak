@@ -29,24 +29,6 @@
 
 ---
 
-## 📄 Project Deck (PPT) & Diagrams
-
-- **Project deck (submitted to AWS):** [View Main PPT on GitHub](diagrams/Main_PPT.pdf)
-- **Visual diagrams:** mock/wireframe, process flow, and use case (below)
-
----
-
-#### Mock / Wireframe
-![Mock diagram of proposed solution](diagrams/Mock_diagram_of_proposed_solution.png)
-
-#### Process flow
-![Process flow diagram](diagrams/Process_flow_Diagram.png)
-
-#### Use case
-![Use case diagram](diagrams/Use_case_diagram.png)
-
----
-
 ## 🎯 The Problem
 
 India has **63+ million MSMEs** — small shops, traders, small manufacturers, and service businesses. Most run on intuition and experience. They lack **demand forecasting**, **pricing intelligence**, and **early warnings** for festivals, compliance deadlines, supply disruptions, or price moves.
@@ -109,7 +91,18 @@ Same Hinglish chat and proactive alerts on WhatsApp — the channel most small b
 
 ## 🏗 Architecture
 
+**Project deck (submitted to AWS):** [View Main PPT on GitHub](diagrams/Main_PPT.pdf)
+
 ![Architecture diagram of the proposed solution](diagrams/Archtecture_diagram.png)
+
+#### Mock / Wireframe
+![Mock diagram of proposed solution](diagrams/Mock_diagram_of_proposed_solution.png)
+
+#### Process flow
+![Process flow diagram](diagrams/Process_flow_Diagram.png)
+
+#### Use case
+![Use case diagram](diagrams/Use_case_diagram.png)
 
 ---
 
