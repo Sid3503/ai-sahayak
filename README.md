@@ -6,7 +6,7 @@
 <img src="https://img.shields.io/badge/Built%20with-Amazon%20Bedrock-232F3E?style=for-the-badge&logo=amazonaws&logoColor=white" />
 <img src="https://img.shields.io/badge/Language-Hinglish%20%F0%9F%87%AE%F0%9F%87%B3-138808?style=for-the-badge" />
 
-# 🛒 AI Sahayak
+# AI Sahayak
 
 ### *Proactive Intelligence for Indian Kirana & MSMEs*
 
